@@ -1,0 +1,9 @@
+# Local state the plugin writes inside a user's repo — never part of this package.
+.mega/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

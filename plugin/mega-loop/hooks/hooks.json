@@ -1,0 +1,21 @@
+{
+  "description": "mega-loop terminal companion reflexes. The engine's gate is the only pass/fail (design 56 rule 1): NO hook ever scores a fix. restore-connection re-injects the repo's saved project so you connect once, not every session; gate-on-stop blocks 'done' while a fix is open and tells the agent to run the ENGINE gate verb (the agent judges via the engine, not the hook) — and steps aside for a stale (>24h) marker so an abandoned fix never nags forever.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/restore-connection.sh" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/gate-on-stop.sh" }
+        ]
+      }
+    ]
+  }
+}

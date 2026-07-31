@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "mega-loop": {
+      "type": "http",
+      "url": "${user_config.base_url}/companion/mcp",
+      "headers": {
+        "Authorization": "Bearer ${user_config.api_token}"
+      }
+    }
+  }
+}

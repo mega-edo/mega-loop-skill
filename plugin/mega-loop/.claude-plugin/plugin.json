@@ -1,0 +1,26 @@
+{
+  "name": "mega-loop",
+  "version": "0.1.0",
+  "description": "Run mega-loop from inside Claude Code — see the bugs it diagnosed from your production traces, then fix them. Connected repo → the engine fixes and opens a draft PR; no repo → this session fixes locally, the engine judges, you open the PR. Authenticates with a personal access token.",
+  "author": { "name": "Mind.ai" },
+  "homepage": "https://github.com/mega-edo/mega-loop-skill",
+  "repository": "https://github.com/mega-edo/mega-loop-skill",
+  "license": "Proprietary",
+  "keywords": ["llm", "autofix", "handoff", "bug-graph", "mcp"],
+  "userConfig": {
+    "base_url": {
+      "type": "string",
+      "title": "mega-loop base URL",
+      "description": "Root URL of your mega-loop server, no trailing slash. Production: https://loop.megacode.ai. Local dev stack: http://localhost:18000.",
+      "required": true,
+      "default": "https://loop.megacode.ai"
+    },
+    "api_token": {
+      "type": "string",
+      "title": "Personal access token",
+      "description": "A mega-loop PAT (mlp_…). Generate one in the dashboard under Account → Personal Access Tokens (shown once). Stored securely in your OS keychain, never in a file.",
+      "sensitive": true,
+      "required": true
+    }
+  }
+}
