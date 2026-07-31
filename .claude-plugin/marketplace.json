@@ -1,7 +1,7 @@
 {
   "name": "mega-loop",
   "description": "MEGA Loop terminal companion — see the bugs MEGA Loop found in your production traces, and fix them, without leaving Claude Code.",
-  "owner": { "name": "Mind.ai" },
+  "owner": { "name": "Mind AI" },
   "plugins": [
     {
       "name": "mega-loop",
