@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from tests.conftest import span
 
-from trace_validator.checks import grade_sample
+from trace_validator.checks import fix_summary, grade_sample
 from trace_validator.report import render
 
 
@@ -27,6 +27,29 @@ def test_several_failing_traces_get_the_grouped_fix_list() -> None:
 
     assert "most-clearing first" in out
     assert "clears 3 traces" in out
+
+
+def test_one_root_cause_stays_one_fix_however_many_spans_it_left_parentless() -> None:
+    """Grouping keys on the fix text, so no check may vary that text per trace.
+
+    Two traces broken the same way — context never propagated — differ only in how many spans
+    ended up parentless. If that count reaches the fix string they group apart, and one systemic
+    cause is printed as two problems that each clear one trace.
+    """
+    sample = grade_sample(
+        [
+            [span(span_id=f"a{i}", trace_id="ta") for i in range(2)],
+            [span(span_id=f"b{i}", trace_id="tb") for i in range(3)],
+        ]
+    )
+
+    root_fixes = [e for e in fix_summary(list(sample.traces)) if "R1b_clean_root" in e["checks"]]
+    assert len(root_fixes) == 1
+    assert root_fixes[0]["traces"] == 2
+    assert "parentless" not in root_fixes[0]["fix"]
+
+    # And the count it used to carry still reaches the reader, via the per-trace detail.
+    assert "Found 3 parentless spans" in render(sample, checked=2)
 
 
 def test_counts_read_as_english() -> None:

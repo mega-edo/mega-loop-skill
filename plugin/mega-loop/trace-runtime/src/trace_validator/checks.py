@@ -316,11 +316,12 @@ def grade(spans: list[Span]) -> TraceGrade:
         "R1b_clean_root",
         "soft",
         "pass" if clean else "fail",
+        # The count belongs here, not in `fix`: fix_summary groups by exact fix text, so a
+        # per-trace number would split one systemic root cause into one entry per count.
         "Verification falls back to heuristic text reconstruction instead of replaying the "
-        "real entry.",
+        "real entry." + (f" Found {len(roots)} parentless spans." if len(roots) != 1 else ""),
         "Make the user's request one single root span of kind CHAIN or AGENT (not LLM), with "
-        "`input.value` set."
-        + (f" Found {len(roots)} parentless spans." if len(roots) != 1 else ""),
+        "`input.value` set.",
         1,
         0 if clean else 1,
     )
