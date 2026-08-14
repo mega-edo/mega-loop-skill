@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node (kits/node)
+node_modules/
+kits/node/dist/
+*.tsbuildinfo
+
+# Credentials — the validator reads platform keys from the environment, never from a file that
+# could be committed. Keep it that way: if you use a .env for local runs, it stays out of git.
+.env
+.env.*
+!.env.example
+
+# Trace dumps. Exported traces carry real prompts and real user text — treat them as data, not
+# as fixtures. Anything under assets/ is hand-written and safe to commit; anything else is not.
+traces-*.json
+*-export.json
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/

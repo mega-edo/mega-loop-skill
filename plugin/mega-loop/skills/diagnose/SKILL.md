@@ -29,6 +29,9 @@ evidence.
 ## Handoffs
 
 - The user wants to **fix** it → switch to **fix** (`autofix <the bug>`).
+- **No bugs, or the project has few/low-readiness traces** → MEGA Loop may have nothing to detect on
+  yet. Point them at **`/mega-loop:trace-analyze`** to grade their traces (or their source) against
+  the readiness contract before expecting bugs.
 - Any tool returns **`unauthorized`** → the PAT isn't set; run **`/mega-loop:status`** (setup doctor).
 - Any tool returns **`forbidden`** → that project isn't theirs; re-run `list_projects` and re-pick.
 

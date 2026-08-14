@@ -1,0 +1,82 @@
+[
+  {
+    "span_id": "1000000000000001",
+    "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "parent_id": "",
+    "name": "POST /chat",
+    "span_kind": "CHAIN",
+    "status_code": "OK",
+    "start_time": "2026-08-05T10:00:00Z",
+    "end_time": "2026-08-05T10:00:04Z",
+    "attributes": {
+      "openinference.span.kind": "CHAIN",
+      "input.value": "How many orders shipped late last week?",
+      "output.value": "14 orders shipped after their promised date last week."
+    }
+  },
+  {
+    "span_id": "1000000000000002",
+    "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "parent_id": "1000000000000001",
+    "name": "plan",
+    "span_kind": "LLM",
+    "status_code": "OK",
+    "start_time": "2026-08-05T10:00:00Z",
+    "end_time": "2026-08-05T10:00:01Z",
+    "attributes": {
+      "openinference.span.kind": "LLM",
+      "llm.model_name": "claude-sonnet-5",
+      "llm.token_count.prompt": 412,
+      "llm.token_count.completion": 38,
+      "llm.token_count.total": 450,
+      "input.value": "How many orders shipped late last week?",
+      "output.value": "I should query the orders table.",
+      "llm.input_messages.0.message.role": "system",
+      "llm.input_messages.0.message.content": "You answer questions about the orders database.",
+      "llm.input_messages.1.message.role": "user",
+      "llm.input_messages.1.message.content": "How many orders shipped late last week?",
+      "llm.output_messages.0.message.role": "assistant",
+      "llm.output_messages.0.message.content": "I should query the orders table.",
+      "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "query_orders",
+      "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{\"window\": \"last_week\"}"
+    }
+  },
+  {
+    "span_id": "1000000000000003",
+    "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "parent_id": "1000000000000001",
+    "name": "query_orders",
+    "span_kind": "TOOL",
+    "status_code": "OK",
+    "start_time": "2026-08-05T10:00:01Z",
+    "end_time": "2026-08-05T10:00:03Z",
+    "attributes": {
+      "openinference.span.kind": "TOOL",
+      "input.value": "{\"window\": \"last_week\"}",
+      "output.value": "{\"late_orders\": 14}"
+    }
+  },
+  {
+    "span_id": "1000000000000004",
+    "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "parent_id": "1000000000000001",
+    "name": "answer",
+    "span_kind": "LLM",
+    "status_code": "OK",
+    "start_time": "2026-08-05T10:00:03Z",
+    "end_time": "2026-08-05T10:00:04Z",
+    "attributes": {
+      "openinference.span.kind": "LLM",
+      "llm.model_name": "claude-sonnet-5",
+      "llm.token_count.prompt": 486,
+      "llm.token_count.completion": 21,
+      "llm.token_count.total": 507,
+      "input.value": "{\"late_orders\": 14}",
+      "output.value": "14 orders shipped after their promised date last week.",
+      "llm.input_messages.0.message.role": "user",
+      "llm.input_messages.0.message.content": "The query returned {\"late_orders\": 14}. Answer the question.",
+      "llm.output_messages.0.message.role": "assistant",
+      "llm.output_messages.0.message.content": "14 orders shipped after their promised date last week."
+    }
+  }
+]

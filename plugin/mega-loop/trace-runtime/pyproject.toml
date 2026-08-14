@@ -1,0 +1,49 @@
+[project]
+name = "trace-instrumentation-skill"
+version = "0.1.0"
+description = "Instrument an AI agent so its traces are usable by MEGA Loop, and check that they are."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = [
+    "pydantic>=2.6",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+validate-traces = "trace_validator.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trace_validator"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# "." as well as "src": the test modules import their shared fixtures as `tests.conftest`, which
+# only resolves with the repo root on the path. `python -m pytest` happened to work (it prepends
+# the cwd); the bare `pytest` the README documents did not, and failed at collection.
+pythonpath = ["src", "."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "src"
+packages = ["trace_validator"]
+strict = true

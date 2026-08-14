@@ -11,11 +11,23 @@ plugin/mega-loop/
 │   ├── connect/                 pick the project this repo works on
 │   ├── diagnose/                list bugs · explain one (read only)
 │   ├── fix/                     the fix orchestrator — routed by the server
-│   └── refine/                  apply PR review feedback to the same branch
+│   ├── refine/                  apply PR review feedback to the same branch
+│   ├── trace-analyze/           grade traces against the readiness contract (read only)
+│   └── trace-fix/               fix the instrumentation until traces pass
 ├── commands/                    slash-command shortcuts
 │   ├── status.md                setup doctor + connected project + fixes in flight
 │   ├── bugs.md · explain.md · groups.md      → into the diagnose skill
-│   └── projects.md · disconnect.md           → read / clear the saved project
+│   ├── projects.md · disconnect.md           → read / clear the saved project
+│   └── trace-analyze.md · trace-fix.md       → grade traces / fix instrumentation
+├── trace-runtime/               the trace validator both trace-* skills share — maintained here
+│   ├── scripts/validate_traces.py   run with `uv run` — deps are self-contained
+│   ├── src/trace_validator/     the fourteen checks and the readiness contract
+│   ├── kits/{python,node}/      instrumentation templates to copy into a repo
+│   ├── references/              the trace spec, span kinds, context propagation
+│   ├── assets/                  good / broken example traces for a smoke test
+│   ├── examples/orders-agent/   one agent, naive vs instrumented — the discrimination proof
+│   ├── tests/                   `uv run --extra dev pytest`; test_contract_drift.py pins the contract
+│   └── pyproject.toml · uv.lock     dev deps and the pinned lock for the test suite
 └── hooks/
     ├── restore-connection.sh    re-injects this repo's saved project at session start
     └── gate-on-stop.sh          blocks "done" while a fix is open, until the engine judges
