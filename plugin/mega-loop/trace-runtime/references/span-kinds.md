@@ -58,3 +58,31 @@ llm.tools.<i>.tool.json_schema    the schema you gave the model (function.name, 
 
 Worth emitting once per trace: it lets MEGA Loop tell "the model called a tool that does not
 exist" apart from "the tool failed."
+
+## Spans you do not open yourself
+
+Auto-instrumentation — the ASGI/WSGI server, the HTTP client, the background-task wrapper — opens
+spans your code never touches, and most of those libraries set no kind. They are real structure, so
+the honest label is `CHAIN`; leaving them unlabelled makes them invisible in the same silent way a
+mislabelled step is.
+
+The seam is a `SpanProcessor.on_start`, which sees every span the provider creates:
+
+```python
+class _KindDefault(SpanProcessor):
+    def on_start(self, span, parent_context=None) -> None:
+        if not span.attributes.get("openinference.span.kind"):
+            span.set_attribute("openinference.span.kind", "CHAIN")
+```
+
+**The guard is the whole point.** `on_start` runs *after* `Span.__init__` has applied the
+attributes passed at creation, so an unconditional `set_attribute` overwrites a kind an
+instrumentor already set correctly — the LLM spans, the ones worth the most, are exactly the ones
+that set theirs at creation. Stamping over them turns the best spans in the trace into structure.
+
+The mirror of that trap: your own helpers must set their kind **after** the span is open (or the
+processor's default will land on top of theirs). Whichever order you choose, pin it with a test —
+a span that silently becomes `CHAIN` looks identical to one that was always meant to be.
+
+Labelling structure this way is not a way to pass `M1`. A trace of nothing but `CHAIN` still
+reports that there is no detectable work in it, which for a CRUD route is the true answer.

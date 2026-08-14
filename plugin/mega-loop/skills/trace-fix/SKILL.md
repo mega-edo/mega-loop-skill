@@ -49,7 +49,12 @@ No `uv`? `pip install pydantic httpx` once, then use `python` in place of `uv ru
      `${CLAUDE_PLUGIN_ROOT}/trace-runtime/references/context-propagation.md`.
    - **No entry input** (`R1`) — one line: `input.value` on the root span, so a fix can be verified.
    - **Missing span kinds** (`M1`) — set `openinference.span.kind`; an unknown kind is invisible to
-     detectors. `${CLAUDE_PLUGIN_ROOT}/trace-runtime/references/span-kinds.md`.
+     detectors. `${CLAUDE_PLUGIN_ROOT}/trace-runtime/references/span-kinds.md`. When the kindless
+     spans are ones the app never opens — the ASGI server, the HTTP client, a background-task
+     wrapper — the fix is a `SpanProcessor` default, and it **must** skip spans that already carry
+     a kind. `on_start` runs after creation-time attributes are applied, so stamping
+     unconditionally overwrites the LLM spans an instrumentor labelled correctly. See the reference
+     before writing it.
    - **Failures reported as OK** (`R3`) — set span status ERROR when a step fails instead of
      returning an error as OK text.
    - **Steps with no input/output** (`S1`) — set `input.value`/`output.value` on every LLM, TOOL and
