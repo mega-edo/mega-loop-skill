@@ -17,8 +17,12 @@ unrecognised kind is not a cosmetic problem — it is invisibility.
 | `EVALUATOR` | a scoring/grading step |
 | `GUARDRAIL` | a safety or policy check |
 
-`SPAN` and `PROMPT` exist but read as *no kind was set*. They are not failures, but they are not
-informative either.
+`SPAN` is not a kind — it is the normalizer's stand-in for one that was never set, so it reads as
+*absent*. It is not a failure, but it is not informative either.
+
+`PROMPT` is a real member of the enum, so setting it is not a spec violation. No detector filters
+on it, though, so a step labelled `PROMPT` is invisible to detection just the same. If it did work
+— a model call, a tool run, a lookup — label it with the kind that says so.
 
 ## Required and expected keys
 

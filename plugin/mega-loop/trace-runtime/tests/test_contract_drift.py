@@ -112,6 +112,23 @@ def test_span_is_absent_not_unknown() -> None:
     assert m1[unknown.verdict].verdict == "fail"
 
 
+def test_prompt_is_a_real_kind_not_an_absent_one() -> None:
+    """`PROMPT` is a full enum member — the mirror image of the `SPAN` rule above.
+
+    The two look interchangeable ("neither one names a step"), and moving `PROMPT` across to
+    `ABSENT_KINDS` is the tidying a reader reaches for. Upstream `readiness.py` keeps it in
+    `_SPAN_KINDS` with `_ABSENT_KINDS = {"", "SPAN"}`, so making it absent here would report
+    `warn` where MEGA Loop reports nothing at all. No detector filters on it either way —
+    `DETECTOR_KINDS` is the constant that decides visibility.
+    """
+    assert "PROMPT" in C.SPAN_KINDS
+    assert "PROMPT" not in C.ABSENT_KINDS
+    assert "PROMPT" not in C.DETECTOR_KINDS
+
+    prompt = grade([span(span_kind="PROMPT", attributes={"input.value": "hi"})])
+    assert next(c for c in prompt.checks if c.id == "M1_kind_present").verdict == "pass"
+
+
 def test_the_healthy_verdict_keeps_mega_loops_word() -> None:
     """`entry_seatable`, not `ready` — the dashboard shows the developer these five words."""
     assert set(C.VERDICT_GLOSS) == {
