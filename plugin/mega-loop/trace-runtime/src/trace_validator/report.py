@@ -18,6 +18,10 @@ from trace_validator.checks import SampleGrade, TraceGrade, fix_summary
 from trace_validator.source import SourceGrade
 
 _TICK, _CROSS, _WARN = "✓", "✗", "!"
+
+#: Sites printed per finding before the tail is folded into a count. Enough to see the shape of
+#: the problem; short enough that a board with several findings still fits on one screen.
+_SITES_SHOWN = 5
 _MAX_TRACE_DETAIL = 8  # beyond this the per-trace list stops teaching and starts scrolling
 
 
@@ -115,10 +119,13 @@ def render_source(grade: SourceGrade) -> str:
             f"  {_mark(check.verdict)} {check.id} — {check.detail} "
             f"({_plural(check.fail_count, 'site')})"
         )
-        for site in check.evidence:
+        # Truncated for the reader, not on the record: `--json` carries every site, so a caller
+        # can open all of them while a terminal shows the first handful.
+        shown = check.evidence[:_SITES_SHOWN]
+        for site in shown:
             lines.append(f"      {site}")
-        if check.fail_count > len(check.evidence):
-            lines.append(f"      … and {check.fail_count - len(check.evidence)} more")
+        if len(check.evidence) > len(shown):
+            lines.append(f"      … and {len(check.evidence) - len(shown)} more (--json for all)")
         lines.append(f"      → {check.fix}")
         lines.append("")
 

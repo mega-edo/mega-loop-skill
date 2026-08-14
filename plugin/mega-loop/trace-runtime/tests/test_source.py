@@ -164,3 +164,37 @@ def test_the_report_says_what_source_cannot_answer(tmp_path: Path, capsys) -> No
     main(["--source", str(tmp_path)])
     out = capsys.readouterr().out
     assert "need real traces" in out
+
+
+def test_a_test_module_is_not_graded(tmp_path: Path) -> None:
+    """A test opens spans to assert on them, so it hand-rolls kindless ones by design. Graded,
+    mega-loop's own suite produced 22 findings, every one of them unactionable — and a board a
+    developer has to triage before learning none of it ships is a board they stop reading.
+
+    Both shapes: a `tests/` package, and a stray `test_*.py` beside the code it covers.
+    """
+    opener = "tracer.start_as_current_span('x')\n"
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_thing.py").write_text(opener, encoding="utf-8")
+    (tmp_path / "test_stray.py").write_text(opener, encoding="utf-8")
+    (tmp_path / "app.py").write_text("x = 1\n", encoding="utf-8")
+
+    grade = scan(tmp_path)
+    assert grade.scanned == 1  # app.py alone
+    assert _check(grade, "L2_span_kind_at_open").fail_count == 0
+
+
+def test_json_carries_every_site_while_the_terminal_folds_the_tail(tmp_path: Path, capsys) -> None:
+    """Truncation is a display choice. Reporting 22 sites and handing a caller 5 makes the
+    machine-readable output the one that cannot be acted on, which is backwards."""
+    body = "".join(f"tracer.start_as_current_span('s{i}')\n" for i in range(9))
+    (tmp_path / "app.py").write_text(body, encoding="utf-8")
+
+    grade = scan(tmp_path)
+    assert len(_check(grade, "L2_span_kind_at_open").evidence) == 9
+
+    main(["--source", str(tmp_path), "--json"])
+    assert '"app.py:9"' in capsys.readouterr().out  # the ninth site, past the printed five
+
+    main(["--source", str(tmp_path)])
+    assert "… and 4 more" in capsys.readouterr().out

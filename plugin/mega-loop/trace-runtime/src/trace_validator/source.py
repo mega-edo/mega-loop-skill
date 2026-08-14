@@ -76,6 +76,11 @@ _SKIP_DIRS = frozenset(
         "dist",
         ".tox",
         "site-packages",
+        # A test opens spans to assert on them, so it is *supposed* to hand-roll one without a
+        # kind. Graded, a healthy suite reads as dozens of findings a developer has to walk
+        # before learning none of them ship — which teaches them to skim the whole board.
+        "tests",
+        "test",
     }
 )
 
@@ -95,15 +100,21 @@ class SourceGrade(BaseModel):
         return not self.findings
 
 
-def python_files(root: Path) -> list[Path]:
-    """Every `.py` under ROOT, minus the directories nobody wrote by hand.
+def _is_test(path: Path) -> bool:
+    """A test module, wherever it sits — `tests/` catches most, this catches the strays."""
+    return path.name.startswith("test_") or path.name.endswith("_test.py")
 
-    Vendored code is skipped rather than reported: a finding in `site-packages` names a file the
-    developer cannot edit, which is the definition of an unactionable failure.
+
+def python_files(root: Path) -> list[Path]:
+    """Every `.py` under ROOT that could run in production.
+
+    Vendored code and tests are skipped rather than reported. A finding in `site-packages` names
+    a file the developer cannot edit; a finding in a test names a span written to be asserted on.
+    Both are unactionable, and a board full of them is one a developer learns to skim.
     """
     out: list[Path] = []
     for path in sorted(root.rglob("*.py")):
-        if any(part in _SKIP_DIRS for part in path.parts):
+        if any(part in _SKIP_DIRS for part in path.parts) or _is_test(path):
             continue
         out.append(path)
     return out
@@ -241,7 +252,7 @@ def _noisy_check(hits: list[str], scanned: int) -> Check:
         ),
         sample_size=scanned,
         fail_count=len(hits),
-        evidence=tuple(hits[:5]),
+        evidence=tuple(hits),
     )
 
 
@@ -262,5 +273,5 @@ def _kindless_check(hits: list[str], scanned: int) -> Check:
         ),
         sample_size=scanned,
         fail_count=len(hits),
-        evidence=tuple(hits[:5]),
+        evidence=tuple(hits),
     )
