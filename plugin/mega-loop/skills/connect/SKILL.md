@@ -38,9 +38,11 @@ reuse that choice, so the user names it **once**.
 Creating a project and connecting a **trace source** (Langfuse / Phoenix / LangSmith) is done on the
 **web dashboard**, not here — it needs provider secret keys and a live "test connection" check that
 belong in the browser, not pasted through the terminal. If a chosen project has **no bugs yet**, it
-likely has no trace source or hasn't been analyzed: tell the user to connect a source on the web,
-then come back. (A future `connect_project` verb may bring source-binding into the terminal; for now
-it's web-only — see design 56 §7.)
+likely has no trace source, hasn't been analyzed, or its traces aren't readable enough to detect on:
+tell the user to connect a source on the web, then come back — and if the traces themselves are the
+suspect, **`/mega-loop:trace-analyze`** grades them against the readiness contract. (A future
+`connect_project` verb may bring source-binding into the terminal; for now it's web-only — see
+design 56 §7.)
 
 ## Guardrails
 

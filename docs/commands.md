@@ -23,6 +23,34 @@ Give it a job id (`/mega-loop:status abc123`) to watch one running engine job in
 
 ---
 
+## `trace-analyze` and `trace-fix` — make your traces usable first
+
+Trace quality is the input to everything else MEGA Loop does. Before it can find a bug, your agent
+has to emit **one clean trace per request** that the readiness contract accepts. These two run that
+loop, and they mirror the read-only / edits split of `diagnose` and `fix`.
+
+**trace-analyze** — *"are my traces good enough for MEGA Loop?"* · `/mega-loop:trace-analyze`
+Read only. Grades your traces — or your source, before any traces exist — against the same fourteen
+checks MEGA Loop runs internally, and answers four questions per trace:
+
+1. **Can the request be re-run at all?** — the verdict (`entry_missing` → `detection_gap` →
+   `degraded` → `entry_seatable`).
+2. **Will failures be seen?** — error status and step input/output.
+3. **Where are spans malformed?** — fragmentation, missing span kinds, and the rest.
+4. **Is the trace worth it to MEGA Loop?** — a separate, never-fatal line: a trace can be perfectly
+   readable and still hold nothing to detect (all CHAIN, mostly mechanical noise, no token counts).
+
+Every finding comes with the exact fix, and the summary orders them by how many traces each clears.
+It never edits your code.
+
+**trace-fix** — *"make my traces pass"* · `/mega-loop:trace-fix`
+Edits your instrumentation: applies the kit, works the findings top-down, and re-runs the validator
+until the verdicts reach `entry_seatable`, reporting the before/after. Runs the validator with
+`uv run`, so its dependencies never touch your project. When the traces are green, connect the
+project and let MEGA Loop find the real bugs.
+
+---
+
 ## `connect` — pick the project this repo works on
 
 **Say:** "connect to mega-loop", "which project", "switch project"

@@ -1,0 +1,61 @@
+[
+  {
+    "span_id": "2000000000000001",
+    "trace_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "parent_id": "",
+    "name": "run_agent",
+    "status_code": "OK",
+    "start_time": "2026-08-05T11:00:00Z",
+    "end_time": "2026-08-05T11:00:05Z",
+    "attributes": {
+      "note": "no openinference.span.kind, and no input.value — nothing seats the entry"
+    }
+  },
+  {
+    "span_id": "2000000000000002",
+    "trace_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "parent_id": "2000000000000001",
+    "name": "think",
+    "span_kind": "AGENT",
+    "status_code": "OK",
+    "start_time": "2026-08-05T11:00:00Z",
+    "end_time": "2026-08-05T11:00:02Z",
+    "attributes": {
+      "openinference.span.kind": "AGENT",
+      "llm.input_messages.0.message.role": "user",
+      "llm.input_messages.0.message.content": "How many orders shipped late last week?"
+    }
+  },
+  {
+    "span_id": "2000000000000003",
+    "trace_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "parent_id": "9999999999999999",
+    "name": "query_orders",
+    "span_kind": "TOOL",
+    "status_code": "OK",
+    "start_time": "2026-08-05T11:00:02Z",
+    "end_time": "2026-08-05T11:00:04Z",
+    "attributes": {
+      "openinference.span.kind": "TOOL",
+      "output.value": "Error: permission denied for relation orders"
+    }
+  },
+  {
+    "span_id": "2000000000000004",
+    "trace_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "parent_id": "2000000000000001",
+    "name": "summarise",
+    "span_kind": "SUMMARISER",
+    "status_code": "OK",
+    "status_message": "finished cleanly",
+    "start_time": "2026-08-05T11:00:04Z",
+    "end_time": "2026-08-05T11:00:03Z",
+    "attributes": {
+      "openinference.span.kind": "SUMMARISER",
+      "llm.input_messages.0.message.role": "user",
+      "llm.input_messages.0.message.content": "summarise",
+      "llm.input_messages.2.message.role": "narrator",
+      "llm.input_messages.2.message.content": "index 1 is missing, and 'narrator' is not a role"
+    }
+  }
+]

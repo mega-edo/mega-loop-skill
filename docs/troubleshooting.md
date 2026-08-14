@@ -72,10 +72,14 @@ projects and trace sources are created on the web, so a project you never create
 
 ### There are no bugs listed
 
-**Cause.** The project has no trace source connected yet, or it has never been analysed.
+**Cause.** One of three: the project has no trace source connected yet, it has never been analysed,
+or the traces arrive but are too low-readiness for MEGA Loop to detect on — fragmented across a hop,
+or missing the standard keys, so the detectors skip them silently.
 
-**Fix.** Connect a trace source on the web dashboard and run the analysis once. After that the
-terminal sees everything.
+**Fix.** Connect a trace source on the web dashboard and run the analysis once. If a source is
+connected but nothing is found, the traces themselves are the suspect: run `/mega-loop:trace-analyze`
+to grade them against the readiness contract, then `/mega-loop:trace-fix` to repair the
+instrumentation until they pass.
 
 ### Claude Code fixed the bug but will not say it is done
 

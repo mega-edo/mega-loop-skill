@@ -78,6 +78,8 @@ from your words.
 | Say this | What happens |
 |---|---|
 | *"connect to mega-loop"* | Lists your projects and remembers the one you pick — for this repo, forever. |
+| *"are my traces good enough for mega-loop?"* | Grades your traces (or your code) against the readiness contract and lists every fix — read only. |
+| *"make my traces pass"* | Fixes the instrumentation until MEGA Loop can read the traces. |
 | *"what's broken?"* | The bugs found in your traces, worst first, by title. |
 | *"why is the refund answer wrong?"* | The cause plus the exact `file:line`, taken from a real trace. |
 | *"fix that one"* | Runs the fix and gets you a **draft** PR. |
@@ -91,6 +93,8 @@ Prefer typing commands? Every one of them has a slash command too:
 | `/mega-loop:status` | Setup check, connected project, fixes in flight |
 | `/mega-loop:connect` | Pick the project this repo works on |
 | `/mega-loop:projects` | List your projects (read only) |
+| `/mega-loop:trace-analyze` | Grade your traces against the readiness contract (read only) |
+| `/mega-loop:trace-fix` | Fix the instrumentation until traces pass |
 | `/mega-loop:bugs` | List the open bugs |
 | `/mega-loop:explain <bug>` | Cause + `file:line` for one bug |
 | `/mega-loop:groups` | Bugs grouped the way a fix actually ships |
@@ -137,6 +141,9 @@ Every PR is a **draft**, and nothing is ever merged for you.
   fixing, it edits files in the current folder.
 - **Creating a project and connecting a trace source is done on the web.** It needs provider secret
   keys and a live connection test, which belong in a browser. Do it once, then live here.
+- **No bugs showing, or traces MEGA Loop ignores?** Trace quality is the input to everything else.
+  `/mega-loop:trace-analyze` grades your traces (or your code, before any exist) against the same
+  readiness contract, and `/mega-loop:trace-fix` fixes the instrumentation until they pass.
 - **Tokens are web only.** You can hold up to 10 and revoke any of them from the dashboard. The
   plugin uses a token but can never create or delete one.
 - **You need `git`.** For opening PRs you also need the `gh` CLI (GitHub), `glab` (GitLab), or an

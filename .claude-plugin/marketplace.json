@@ -1,13 +1,13 @@
 {
   "name": "mega-loop",
-  "description": "MEGA Loop terminal companion — see the bugs MEGA Loop found in your production traces, and fix them, without leaving Claude Code.",
+  "description": "MEGA Loop terminal companion — get your agent's traces usable, then see the bugs MEGA Loop found in them and fix them, without leaving Claude Code.",
   "owner": { "name": "Mind AI" },
   "plugins": [
     {
       "name": "mega-loop",
-      "description": "Browse the bugs MEGA Loop diagnosed from your traces, autofix them, and get a draft PR — from inside Claude Code. The engine finds the bug and judges the fix; your session runs the code.",
+      "description": "Grade your traces against MEGA Loop's readiness contract and fix the instrumentation, then browse the bugs MEGA Loop diagnosed from those traces, autofix them, and get a draft PR — from inside Claude Code. The engine finds the bug and judges the fix; your session runs the code.",
       "source": "./plugin/mega-loop",
-      "keywords": ["debugging", "autofix", "observability", "llm", "mcp"]
+      "keywords": ["debugging", "autofix", "observability", "tracing", "opentelemetry", "openinference", "llm", "mcp"]
     }
   ]
 }

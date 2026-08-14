@@ -1,12 +1,12 @@
 {
   "name": "mega-loop",
   "version": "0.1.0",
-  "description": "Run mega-loop from inside Claude Code — see the bugs it diagnosed from your production traces, then fix them. Connected repo → the engine fixes and opens a draft PR; no repo → this session fixes locally, the engine judges, you open the PR. Authenticates with a personal access token.",
+  "description": "Run mega-loop from inside Claude Code — get your agent's traces usable first, then see the bugs it diagnosed from them and fix them. Grade traces against MEGA Loop's readiness contract and fix the instrumentation; connected repo → the engine fixes bugs and opens a draft PR; no repo → this session fixes locally, the engine judges, you open the PR. Authenticates with a personal access token.",
   "author": { "name": "Mind AI" },
   "homepage": "https://github.com/mega-edo/mega-loop-skill",
   "repository": "https://github.com/mega-edo/mega-loop-skill",
   "license": "Proprietary",
-  "keywords": ["llm", "autofix", "handoff", "bug-graph", "mcp"],
+  "keywords": ["llm", "autofix", "handoff", "bug-graph", "mcp", "observability", "tracing", "opentelemetry", "openinference"],
   "userConfig": {
     "base_url": {
       "type": "string",
