@@ -52,6 +52,15 @@ function endpointAndHeaders(): { url: string; headers: Record<string, string> } 
   return { url: `${phoenixHost.replace(/\/$/, '')}/v1/traces`, headers: {} }
 }
 
+/**
+ * The provider `setupTracing()` built, kept so `shutdownTracing()` can flush it.
+ *
+ * `provider.register()` installs the provider as the *delegate* of the API's internal
+ * `ProxyTracerProvider`, and `trace.getTracerProvider()` hands back that proxy — which has no
+ * `shutdown`. Going through the API to flush is therefore a silent no-op; hold the real one.
+ */
+let activeProvider: NodeTracerProvider | undefined
+
 export function setupTracing(options: TracingOptions = {}): Tracer {
   const serviceName = options.serviceName ?? 'agent'
   const attributes: Record<string, string> = {
@@ -69,15 +78,15 @@ export function setupTracing(options: TracingOptions = {}): Tracer {
   // Without an explicit propagator, cross-service calls start new traces instead of continuing
   // this one — the fragmentation MEGA Loop cannot use.
   provider.register({ propagator: new W3CTraceContextPropagator() })
+  activeProvider = provider
 
   diag.info(`tracing configured: service=${serviceName} endpoint=${url}`)
   return trace.getTracer(serviceName)
 }
 
-/** Flush before a short-lived process exits, or nothing is ever exported. */
+/** Flush before a short-lived process exits, or nothing is ever exported. Safe to call twice. */
 export async function shutdownTracing(): Promise<void> {
-  const provider = trace.getTracerProvider()
-  if ('shutdown' in provider && typeof provider.shutdown === 'function') {
-    await (provider as { shutdown: () => Promise<void> }).shutdown()
-  }
+  const provider = activeProvider
+  activeProvider = undefined
+  await provider?.shutdown()
 }
