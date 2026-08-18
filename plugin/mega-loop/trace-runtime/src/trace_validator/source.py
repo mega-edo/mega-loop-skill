@@ -280,8 +280,12 @@ def _traces_at_all(tree: ast.AST) -> bool:
 
 
 def _uninstrumented_check(instrumented: bool, scanned: int) -> Check:
-    """Always on the board, like every other check — a rule that only appears when it fails is
-    one a reader cannot confirm ran.
+    """The precondition the rest of the board rests on: there is instrumentation here to grade.
+
+    Unlike every other check, the report names this one by id when it passes — but only on an
+    otherwise clean board, where "nothing wrong" and "nothing traced" would read identically.
+    A board that already carries findings does not repeat it: those findings are themselves
+    proof that something was instrumented.
 
     ``instrumented`` is passed true when any file could not be parsed: claiming a repository
     traces nothing means having read all of it, and a file this Python choked on may be exactly
