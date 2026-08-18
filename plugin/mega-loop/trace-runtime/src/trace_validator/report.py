@@ -139,7 +139,11 @@ def render_source(grade: SourceGrade) -> str:
         lines.append("")
 
     if not grade.findings:
-        lines.append(f"{_TICK} Nothing the source can decide is wrong.")
+        # Name the precondition, not just the absence of findings. A clean board is only
+        # meaningful because something was instrumented to grade; "nothing wrong" alone reads
+        # the same on a repository that traces nothing, which is the confusion L0 exists to end.
+        lines.append(f"{_TICK} L0_any_instrumentation — this repository does trace.")
+        lines.append(f"{_TICK} Nothing else the source can decide is wrong.")
         lines.append("")
 
     # A clean Python board says nothing about the rest of a polyglot repository, and the reader

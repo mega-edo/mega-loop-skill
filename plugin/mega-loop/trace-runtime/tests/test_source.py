@@ -284,3 +284,23 @@ def test_any_sign_of_tracing_clears_it(tmp_path: Path) -> None:
         root.mkdir()
         (root / "app.py").write_text(body, encoding="utf-8")
         assert _check(scan(root), "L0_any_instrumentation").verdict != "fail", body
+
+
+def test_the_clean_board_confirms_the_check_that_makes_it_meaningful(
+    tmp_path: Path, capsys
+) -> None:
+    """L0 decides whether the rest of the board means anything, so a reader has to see that it
+    ran. Reporting only failures hid it on exactly the repositories where it passed, which left
+    "nothing wrong" reading the same as "nothing to grade" — the confusion L0 exists to end."""
+    (tmp_path / "app.py").write_text(
+        "from opentelemetry import trace\n\n"
+        "with trace.get_tracer('t').start_as_current_span(\n"
+        "    'x', attributes={'openinference.span.kind': 'CHAIN'}\n"
+        "):\n    pass\n",
+        encoding="utf-8",
+    )
+    main(["--source", str(tmp_path)])
+    out = capsys.readouterr().out
+
+    assert "L0_any_instrumentation" in out, "a passing L0 must still be visible"
+    assert "does trace" in out

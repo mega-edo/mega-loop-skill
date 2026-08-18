@@ -85,9 +85,6 @@ _SKIP_DIRS = frozenset(
 )
 
 
-#: Extensions this grader can parse. Anything else it can see but not read.
-_READABLE = frozenset({".py"})
-
 #: Source extensions worth counting when deciding what a repository is written in. Enough to
 #: name the language in a message; not a package manifest, which a polyglot repo has several of.
 _LANGUAGES: dict[str, str] = {
