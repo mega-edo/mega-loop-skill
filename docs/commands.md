@@ -23,11 +23,30 @@ Give it a job id (`/mega-loop:status abc123`) to watch one running engine job in
 
 ---
 
-## `trace-analyze` and `trace-fix` — make your traces usable first
+## `trace-gen`, `trace-analyze` and `trace-fix` — make your traces usable first
 
 Trace quality is the input to everything else MEGA Loop does. Before it can find a bug, your agent
-has to emit **one clean trace per request** that the readiness contract accepts. These two run that
-loop, and they mirror the read-only / edits split of `diagnose` and `fix`.
+has to emit **one clean trace per request** that the readiness contract accepts. These three run
+that loop, and which one you want depends on what you have today:
+
+| You have | Verb |
+|---|---|
+| no tracing at all | `trace-gen` |
+| traces, and a question about them | `trace-analyze` |
+| traces that fail the contract | `trace-fix` |
+
+**trace-gen** — *"I emit nothing yet"* · `/mega-loop:trace-gen`
+Edits your code. Reads the repository to find where a request begins and what happens inside one,
+installs the kit for the stack, writes the spans — then **runs your app and grades the traces that
+came out**, because a codebase with no traces cannot be graded, only guessed at.
+
+The first step is the one that matters: deciding what *one request* is. The answer is whatever a
+person would re-run when they say "this answer was wrong". Get it wrong and you get a tidy trace
+of the wrong thing, which grades well and helps nobody.
+
+Kits ship for **Python and Node**. On another language it says so rather than improvising a kit
+nobody has run, and offers to write the spans against that language's own OpenTelemetry SDK — the
+attribute names are the same strings either way.
 
 **trace-analyze** — *"are my traces good enough for MEGA Loop?"* · `/mega-loop:trace-analyze`
 Read only. Grades your traces — or your source, before any traces exist — against the same fourteen

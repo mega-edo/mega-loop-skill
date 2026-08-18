@@ -85,19 +85,59 @@ _SKIP_DIRS = frozenset(
 )
 
 
+#: Source extensions worth counting when deciding what a repository is written in. Enough to
+#: name the language in a message; not a package manifest, which a polyglot repo has several of.
+_LANGUAGES: dict[str, str] = {
+    ".py": "Python",
+    ".ts": "TypeScript",
+    ".tsx": "TypeScript",
+    ".js": "JavaScript",
+    ".jsx": "JavaScript",
+    ".mjs": "JavaScript",
+    ".go": "Go",
+    ".java": "Java",
+    ".kt": "Kotlin",
+    ".rb": "Ruby",
+    ".cs": "C#",
+    ".php": "PHP",
+    ".rs": "Rust",
+    ".ex": "Elixir",
+    ".scala": "Scala",
+    ".swift": "Swift",
+}
+
+
 class SourceGrade(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    scanned: int = 0  # python files read
+    scanned: int = 0  # files this grader could read
     checks: tuple[Check, ...] = ()
+    #: Language → file count for everything present, readable or not. A repository this grader
+    #: cannot parse must not be reported as clean: "no findings" and "nothing was read" look
+    #: identical on a board and mean opposite things.
+    languages: dict[str, int] = {}
 
     @property
     def findings(self) -> list[Check]:
         return [c for c in self.checks if c.failing]
 
     @property
+    def unreadable(self) -> dict[str, int]:
+        """Languages present in bulk that this grader has no parser for."""
+        return {
+            name: count
+            for name, count in self.languages.items()
+            if name != "Python" and count >= _UNREADABLE_MIN
+        }
+
+    @property
     def ok(self) -> bool:
         return not self.findings
+
+
+#: Below this a language is incidental — a build script, one helper — and saying "I cannot read
+#: your Go" about two files would be noise.
+_UNREADABLE_MIN = 5
 
 
 def _is_test(path: Path) -> bool:
@@ -207,16 +247,83 @@ def _kindless_span_sites(tree: ast.AST, root: Path, path: Path) -> list[str]:
     return hits
 
 
+def census(root: Path) -> dict[str, int]:
+    """Language → file count for what is actually in ROOT, readable or not."""
+    counts: dict[str, int] = {}
+    for path in root.rglob("*"):
+        language = _LANGUAGES.get(path.suffix)
+        if language is None or not path.is_file():
+            continue
+        if any(part in _SKIP_DIRS for part in path.parts):
+            continue
+        counts[language] = counts.get(language, 0) + 1
+    return dict(sorted(counts.items(), key=lambda kv: -kv[1]))
+
+
+def _traces_at_all(tree: ast.AST) -> bool:
+    """Does this module show any sign of tracing — a span, an instrumentor, an OTel import?
+
+    Deliberately generous. The question it answers is "has anyone instrumented this repository",
+    and a file that only imports `opentelemetry` still answers yes; a repository where nothing
+    does is one where tracing has not been started, which is a different situation from a
+    repository whose tracing is wrong.
+    """
+    roots = ("opentelemetry", "openinference")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and _called_name(node) in {*SPAN_OPENERS, "instrument"}:
+            return True
+        if isinstance(node, ast.Import) and any(a.name.split(".")[0] in roots for a in node.names):
+            return True
+        if isinstance(node, ast.ImportFrom) and node.module and node.module.split(".")[0] in roots:
+            return True
+    return False
+
+
+def _uninstrumented_check(instrumented: bool, scanned: int) -> Check:
+    """The precondition the rest of the board rests on: there is instrumentation here to grade.
+
+    Unlike every other check, the report names this one by id when it passes — but only on an
+    otherwise clean board, where "nothing wrong" and "nothing traced" would read identically.
+    A board that already carries findings does not repeat it: those findings are themselves
+    proof that something was instrumented.
+
+    ``instrumented`` is passed true when any file could not be parsed: claiming a repository
+    traces nothing means having read all of it, and a file this Python choked on may be exactly
+    the one that sets up the tracer.
+    """
+    return Check(
+        id="L0_any_instrumentation",
+        tier="hard",
+        verdict="pass" if instrumented else "fail",
+        detail=(
+            "No tracing at all. Nothing in this repository opens a span, enables an "
+            "instrumentor, or imports OpenTelemetry, so there is nothing here to grade"
+        ),
+        fix=(
+            "This board is empty because the code emits nothing, not because it is correct — "
+            "the other checks passed over an empty set. Start the instrumentation first: "
+            "/mega-loop:trace-gen decides what one request is, installs the kit, and grades the "
+            "traces that come out."
+        ),
+        sample_size=scanned,
+        fail_count=0 if instrumented else scanned,
+        evidence=(),
+    )
+
+
 def scan(root: Path) -> SourceGrade:
     """Grade the instrumentation visible in ROOT's Python sources."""
     files = python_files(root)
     noisy: list[str] = []
     kindless: list[str] = []
+    instrumented = False
+    unread = False  # a file this Python could not parse might be the one that traces
 
     for path in files:
         try:
             tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"), filename=str(path))
         except (SyntaxError, ValueError, OSError):
+            unread = True
             continue  # a file this Python cannot parse is not evidence of anything
 
         for node in ast.walk(tree):
@@ -226,10 +333,15 @@ def scan(root: Path) -> SourceGrade:
             ):
                 noisy.append(f"{_where(root, path, node)} ({target})")
         kindless += _kindless_span_sites(tree, root, path)
+        instrumented = instrumented or _traces_at_all(tree)
 
     return SourceGrade(
         scanned=len(files),
+        languages=census(root),
         checks=(
+            # First, because when it fails every other check passed over an empty set and a
+            # clean board would say the opposite of the truth.
+            _uninstrumented_check(instrumented or unread, len(files)),
             _noisy_check(noisy, len(files)),
             _kindless_check(kindless, len(files)),
         ),

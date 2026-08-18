@@ -77,7 +77,8 @@ or the traces arrive but are too low-readiness for MEGA Loop to detect on — fr
 or missing the standard keys, so the detectors skip them silently.
 
 **Fix.** Connect a trace source on the web dashboard and run the analysis once. If a source is
-connected but nothing is found, the traces themselves are the suspect: run `/mega-loop:trace-analyze`
+connected but nothing is found, the traces themselves are the suspect. If the app emits no
+traces at all, `/mega-loop:trace-gen` starts from nothing; if it emits some, run `/mega-loop:trace-analyze`
 to grade them against the readiness contract, then `/mega-loop:trace-fix` to repair the
 instrumentation until they pass.
 

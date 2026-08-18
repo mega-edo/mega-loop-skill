@@ -93,6 +93,7 @@ Prefer typing commands? Every one of them has a slash command too:
 | `/mega-loop:status` | Setup check, connected project, fixes in flight |
 | `/mega-loop:connect` | Pick the project this repo works on |
 | `/mega-loop:projects` | List your projects (read only) |
+| `/mega-loop:trace-gen` | Add tracing to code that emits none, then prove the first traces read |
 | `/mega-loop:trace-analyze` | Grade your traces against the readiness contract (read only) |
 | `/mega-loop:trace-fix` | Fix the instrumentation until traces pass |
 | `/mega-loop:bugs` | List the open bugs |
@@ -141,9 +142,15 @@ Every PR is a **draft**, and nothing is ever merged for you.
   fixing, it edits files in the current folder.
 - **Creating a project and connecting a trace source is done on the web.** It needs provider secret
   keys and a live connection test, which belong in a browser. Do it once, then live here.
-- **No bugs showing, or traces MEGA Loop ignores?** Trace quality is the input to everything else.
-  `/mega-loop:trace-analyze` grades your traces (or your code, before any exist) against the same
-  readiness contract, and `/mega-loop:trace-fix` fixes the instrumentation until they pass.
+- **No bugs showing, or traces MEGA Loop ignores?** Trace quality is the input to everything else,
+  and there is a verb for each starting point. No tracing at all → `/mega-loop:trace-gen` decides
+  what one request is, installs the kit, writes the spans, then runs your app and grades what came
+  out. Traces exist → `/mega-loop:trace-analyze` grades them read-only. Traces exist and fail →
+  `/mega-loop:trace-fix` repairs the instrumentation until they pass.
+- **Which languages?** The kits `/mega-loop:trace-gen` installs ship for Python and Node. The
+  source grader reads Python; on any other language it says so rather than reporting a clean board,
+  because "nothing found" and "nothing read" look identical and mean opposite things. Grading real
+  traces with `--platform` works whatever the app is written in.
 - **Tokens are web only.** You can hold up to 10 and revoke any of them from the dashboard. The
   plugin uses a token but can never create or delete one.
 - **You need `git`.** For opening PRs you also need the `gh` CLI (GitHub), `glab` (GitLab), or an

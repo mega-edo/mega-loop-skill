@@ -4,7 +4,9 @@ description: >
   Fix an AI agent's instrumentation so its traces become usable by MEGA Loop — one clean trace per
   request, OpenInference-compliant — then re-run the validator to prove it. Edits the user's
   code. Use after trace-analyze finds problems, or when the user asks to make their traces pass
-  MEGA Loop's readiness contract. To only see what is wrong without changing code, use trace-analyze.
+  MEGA Loop's readiness contract. To only see what is wrong without changing code, use
+  trace-analyze. When the code emits NO traces at all, use trace-gen instead — this verb repairs
+  instrumentation, it does not decide what to measure.
 allowed-tools: Read, Edit, Write, Bash, Glob, Grep
 ---
 
@@ -18,6 +20,12 @@ on, not a bug fix.
 
 > Paths written `${CLAUDE_PLUGIN_ROOT}/…` point inside this installed plugin. `trace-runtime/` is
 > the shared validator bundle. Everything without that prefix is in the user's own repo.
+
+## This verb repairs; it does not start from nothing
+
+Everything below assumes spans already exist and something about them is wrong. A repository
+with no instrumentation has no report to work from and no before-number to beat, and the first
+real decision there — what one request *is* — is not a repair. That is `/mega-loop:trace-gen`.
 
 ## Start from a measurement
 

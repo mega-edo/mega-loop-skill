@@ -147,8 +147,22 @@ def test_exit_codes(tmp_path: Path) -> None:
     """Same three-way contract as the trace grader: 0 clean, 1 findings, 2 could not look."""
     clean = tmp_path / "clean"
     clean.mkdir()
-    (clean / "a.py").write_text("x = 1\n", encoding="utf-8")
+    # Instrumented, with nothing wrong with it. A file that merely parses is NOT the clean case:
+    # a repository that traces nothing exits 1 now, because it is not ready and saying so is the
+    # whole point of L0.
+    (clean / "a.py").write_text(
+        "from opentelemetry import trace\n\n"
+        "with trace.get_tracer('t').start_as_current_span(\n"
+        "    'x', attributes={'openinference.span.kind': 'CHAIN'}\n"
+        "):\n    pass\n",
+        encoding="utf-8",
+    )
     assert main(["--source", str(clean)]) == 0
+
+    bare = tmp_path / "bare"
+    bare.mkdir()
+    (bare / "a.py").write_text("x = 1\n", encoding="utf-8")
+    assert main(["--source", str(bare)]) == 1  # no tracing at all is a finding
 
     dirty = tmp_path / "dirty"
     dirty.mkdir()
@@ -198,3 +212,95 @@ def test_json_carries_every_site_while_the_terminal_folds_the_tail(tmp_path: Pat
 
     main(["--source", str(tmp_path)])
     assert "… and 4 more" in capsys.readouterr().out
+
+
+def test_a_repository_it_cannot_read_is_not_reported_as_clean(tmp_path: Path, capsys) -> None:
+    """The dangerous silence. A Go repository has no `.py` files, so every check passes
+    vacuously and the board reads as a pass — to a developer whose agent is entirely unmeasured.
+    """
+    for i in range(8):
+        (tmp_path / f"svc{i}.go").write_text("package main\n", encoding="utf-8")
+
+    main(["--source", str(tmp_path)])
+    out = capsys.readouterr().out
+
+    assert "Go (8)" in out
+    assert "parses Python" in out
+    assert "Nothing the source can decide is wrong" not in out
+
+
+def test_a_clean_python_board_still_names_what_it_did_not_read(tmp_path: Path, capsys) -> None:
+    """The polyglot case, which is worse than the pure one: there IS a board, it IS clean, and
+    the part of the repository that actually serves traffic was never opened."""
+    (tmp_path / "helper.py").write_text("from opentelemetry import trace\n", encoding="utf-8")
+    for i in range(30):
+        (tmp_path / f"handler{i}.go").write_text("package main\n", encoding="utf-8")
+
+    grade = scan(tmp_path)
+    assert grade.ok  # the Python it could read is fine…
+    assert grade.unreadable == {"Go": 30}  # …and that is not the whole repository
+
+    main(["--source", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert "Not read: Go (30)" in out
+
+
+def test_a_stray_file_in_another_language_is_not_worth_a_warning(tmp_path: Path) -> None:
+    """A build script or one helper is incidental. Warning about it teaches the reader to skim
+    the line that matters."""
+    (tmp_path / "app.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "tool.go").write_text("package main\n", encoding="utf-8")
+
+    assert scan(tmp_path).unreadable == {}
+
+
+def test_a_repository_with_no_tracing_is_not_reported_as_correct(tmp_path: Path, capsys) -> None:
+    """The greenfield trap, found by running the skill on a stripped repository: every check
+    passes over an empty set, so the board reads as a pass on code that emits nothing at all."""
+    (tmp_path / "app.py").write_text("def ask(q):\n    return q.upper()\n", encoding="utf-8")
+
+    grade = scan(tmp_path)
+    assert not grade.ok
+    assert _check(grade, "L0_any_instrumentation").verdict == "fail"
+
+    main(["--source", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert "No tracing at all" in out
+    assert "trace-gen" in out  # and it says which verb starts one
+
+
+def test_any_sign_of_tracing_clears_it(tmp_path: Path) -> None:
+    """Generous on purpose: the question is whether anyone has started, not whether they
+    finished. An import alone answers it, and a repo that only auto-instruments has no spans of
+    its own to find."""
+    for body in (
+        "from opentelemetry import trace\n",
+        "import opentelemetry.sdk\n",
+        "from openinference.instrumentation.openai import OpenAIInstrumentor\n",
+        "OpenAIInstrumentor().instrument()\n",
+        "tracer.start_as_current_span('x')\n",
+    ):
+        root = tmp_path / f"case{abs(hash(body))}"
+        root.mkdir()
+        (root / "app.py").write_text(body, encoding="utf-8")
+        assert _check(scan(root), "L0_any_instrumentation").verdict != "fail", body
+
+
+def test_the_clean_board_confirms_the_check_that_makes_it_meaningful(
+    tmp_path: Path, capsys
+) -> None:
+    """L0 decides whether the rest of the board means anything, so a reader has to see that it
+    ran. Reporting only failures hid it on exactly the repositories where it passed, which left
+    "nothing wrong" reading the same as "nothing to grade" — the confusion L0 exists to end."""
+    (tmp_path / "app.py").write_text(
+        "from opentelemetry import trace\n\n"
+        "with trace.get_tracer('t').start_as_current_span(\n"
+        "    'x', attributes={'openinference.span.kind': 'CHAIN'}\n"
+        "):\n    pass\n",
+        encoding="utf-8",
+    )
+    main(["--source", str(tmp_path)])
+    out = capsys.readouterr().out
+
+    assert "L0_any_instrumentation" in out, "a passing L0 must still be visible"
+    assert "does trace" in out
