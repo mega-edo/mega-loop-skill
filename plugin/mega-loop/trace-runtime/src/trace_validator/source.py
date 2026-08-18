@@ -263,16 +263,66 @@ def census(root: Path) -> dict[str, int]:
     return dict(sorted(counts.items(), key=lambda kv: -kv[1]))
 
 
+def _traces_at_all(tree: ast.AST) -> bool:
+    """Does this module show any sign of tracing — a span, an instrumentor, an OTel import?
+
+    Deliberately generous. The question it answers is "has anyone instrumented this repository",
+    and a file that only imports `opentelemetry` still answers yes; a repository where nothing
+    does is one where tracing has not been started, which is a different situation from a
+    repository whose tracing is wrong.
+    """
+    roots = ("opentelemetry", "openinference")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and _called_name(node) in {*SPAN_OPENERS, "instrument"}:
+            return True
+        if isinstance(node, ast.Import) and any(a.name.split(".")[0] in roots for a in node.names):
+            return True
+        if isinstance(node, ast.ImportFrom) and node.module and node.module.split(".")[0] in roots:
+            return True
+    return False
+
+
+def _uninstrumented_check(instrumented: bool, scanned: int) -> Check:
+    """Always on the board, like every other check — a rule that only appears when it fails is
+    one a reader cannot confirm ran.
+
+    ``instrumented`` is passed true when any file could not be parsed: claiming a repository
+    traces nothing means having read all of it, and a file this Python choked on may be exactly
+    the one that sets up the tracer.
+    """
+    return Check(
+        id="L0_any_instrumentation",
+        tier="hard",
+        verdict="pass" if instrumented else "fail",
+        detail=(
+            "No tracing at all. Nothing in this repository opens a span, enables an "
+            "instrumentor, or imports OpenTelemetry, so there is nothing here to grade"
+        ),
+        fix=(
+            "This board is empty because the code emits nothing, not because it is correct — "
+            "the other checks passed over an empty set. Start the instrumentation first: "
+            "/mega-loop:trace-gen decides what one request is, installs the kit, and grades the "
+            "traces that come out."
+        ),
+        sample_size=scanned,
+        fail_count=0 if instrumented else scanned,
+        evidence=(),
+    )
+
+
 def scan(root: Path) -> SourceGrade:
     """Grade the instrumentation visible in ROOT's Python sources."""
     files = python_files(root)
     noisy: list[str] = []
     kindless: list[str] = []
+    instrumented = False
+    unread = False  # a file this Python could not parse might be the one that traces
 
     for path in files:
         try:
             tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"), filename=str(path))
         except (SyntaxError, ValueError, OSError):
+            unread = True
             continue  # a file this Python cannot parse is not evidence of anything
 
         for node in ast.walk(tree):
@@ -282,11 +332,15 @@ def scan(root: Path) -> SourceGrade:
             ):
                 noisy.append(f"{_where(root, path, node)} ({target})")
         kindless += _kindless_span_sites(tree, root, path)
+        instrumented = instrumented or _traces_at_all(tree)
 
     return SourceGrade(
         scanned=len(files),
         languages=census(root),
         checks=(
+            # First, because when it fails every other check passed over an empty set and a
+            # clean board would say the opposite of the truth.
+            _uninstrumented_check(instrumented or unread, len(files)),
             _noisy_check(noisy, len(files)),
             _kindless_check(kindless, len(files)),
         ),

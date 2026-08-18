@@ -147,8 +147,22 @@ def test_exit_codes(tmp_path: Path) -> None:
     """Same three-way contract as the trace grader: 0 clean, 1 findings, 2 could not look."""
     clean = tmp_path / "clean"
     clean.mkdir()
-    (clean / "a.py").write_text("x = 1\n", encoding="utf-8")
+    # Instrumented, with nothing wrong with it. A file that merely parses is NOT the clean case:
+    # a repository that traces nothing exits 1 now, because it is not ready and saying so is the
+    # whole point of L0.
+    (clean / "a.py").write_text(
+        "from opentelemetry import trace\n\n"
+        "with trace.get_tracer('t').start_as_current_span(\n"
+        "    'x', attributes={'openinference.span.kind': 'CHAIN'}\n"
+        "):\n    pass\n",
+        encoding="utf-8",
+    )
     assert main(["--source", str(clean)]) == 0
+
+    bare = tmp_path / "bare"
+    bare.mkdir()
+    (bare / "a.py").write_text("x = 1\n", encoding="utf-8")
+    assert main(["--source", str(bare)]) == 1  # no tracing at all is a finding
 
     dirty = tmp_path / "dirty"
     dirty.mkdir()
@@ -218,7 +232,7 @@ def test_a_repository_it_cannot_read_is_not_reported_as_clean(tmp_path: Path, ca
 def test_a_clean_python_board_still_names_what_it_did_not_read(tmp_path: Path, capsys) -> None:
     """The polyglot case, which is worse than the pure one: there IS a board, it IS clean, and
     the part of the repository that actually serves traffic was never opened."""
-    (tmp_path / "helper.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "helper.py").write_text("from opentelemetry import trace\n", encoding="utf-8")
     for i in range(30):
         (tmp_path / f"handler{i}.go").write_text("package main\n", encoding="utf-8")
 
@@ -238,3 +252,35 @@ def test_a_stray_file_in_another_language_is_not_worth_a_warning(tmp_path: Path)
     (tmp_path / "tool.go").write_text("package main\n", encoding="utf-8")
 
     assert scan(tmp_path).unreadable == {}
+
+
+def test_a_repository_with_no_tracing_is_not_reported_as_correct(tmp_path: Path, capsys) -> None:
+    """The greenfield trap, found by running the skill on a stripped repository: every check
+    passes over an empty set, so the board reads as a pass on code that emits nothing at all."""
+    (tmp_path / "app.py").write_text("def ask(q):\n    return q.upper()\n", encoding="utf-8")
+
+    grade = scan(tmp_path)
+    assert not grade.ok
+    assert _check(grade, "L0_any_instrumentation").verdict == "fail"
+
+    main(["--source", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert "No tracing at all" in out
+    assert "trace-gen" in out  # and it says which verb starts one
+
+
+def test_any_sign_of_tracing_clears_it(tmp_path: Path) -> None:
+    """Generous on purpose: the question is whether anyone has started, not whether they
+    finished. An import alone answers it, and a repo that only auto-instruments has no spans of
+    its own to find."""
+    for body in (
+        "from opentelemetry import trace\n",
+        "import opentelemetry.sdk\n",
+        "from openinference.instrumentation.openai import OpenAIInstrumentor\n",
+        "OpenAIInstrumentor().instrument()\n",
+        "tracer.start_as_current_span('x')\n",
+    ):
+        root = tmp_path / f"case{abs(hash(body))}"
+        root.mkdir()
+        (root / "app.py").write_text(body, encoding="utf-8")
+        assert _check(scan(root), "L0_any_instrumentation").verdict != "fail", body
