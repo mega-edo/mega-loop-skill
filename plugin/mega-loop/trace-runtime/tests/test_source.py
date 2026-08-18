@@ -198,3 +198,43 @@ def test_json_carries_every_site_while_the_terminal_folds_the_tail(tmp_path: Pat
 
     main(["--source", str(tmp_path)])
     assert "… and 4 more" in capsys.readouterr().out
+
+
+def test_a_repository_it_cannot_read_is_not_reported_as_clean(tmp_path: Path, capsys) -> None:
+    """The dangerous silence. A Go repository has no `.py` files, so every check passes
+    vacuously and the board reads as a pass — to a developer whose agent is entirely unmeasured.
+    """
+    for i in range(8):
+        (tmp_path / f"svc{i}.go").write_text("package main\n", encoding="utf-8")
+
+    main(["--source", str(tmp_path)])
+    out = capsys.readouterr().out
+
+    assert "Go (8)" in out
+    assert "parses Python" in out
+    assert "Nothing the source can decide is wrong" not in out
+
+
+def test_a_clean_python_board_still_names_what_it_did_not_read(tmp_path: Path, capsys) -> None:
+    """The polyglot case, which is worse than the pure one: there IS a board, it IS clean, and
+    the part of the repository that actually serves traffic was never opened."""
+    (tmp_path / "helper.py").write_text("x = 1\n", encoding="utf-8")
+    for i in range(30):
+        (tmp_path / f"handler{i}.go").write_text("package main\n", encoding="utf-8")
+
+    grade = scan(tmp_path)
+    assert grade.ok  # the Python it could read is fine…
+    assert grade.unreadable == {"Go": 30}  # …and that is not the whole repository
+
+    main(["--source", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert "Not read: Go (30)" in out
+
+
+def test_a_stray_file_in_another_language_is_not_worth_a_warning(tmp_path: Path) -> None:
+    """A build script or one helper is incidental. Warning about it teaches the reader to skim
+    the line that matters."""
+    (tmp_path / "app.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "tool.go").write_text("package main\n", encoding="utf-8")
+
+    assert scan(tmp_path).unreadable == {}

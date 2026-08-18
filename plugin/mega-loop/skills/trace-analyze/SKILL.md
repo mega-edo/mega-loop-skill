@@ -45,6 +45,11 @@ No `uv`? Run `pip install pydantic httpx` once, then use `python` in place of `u
    emitted, and every finding names a `file:line` to open. A clean board here is **not** a pass —
    only real traces settle it — but it is the fastest way to start.
 
+   Read the language line before the verdict. This grader parses Python; on a repository written
+   in something else it says so, and that message is the finding. If the repo emits **nothing at
+   all**, grading it is the wrong verb — hand off to `/mega-loop:trace-gen`, which instruments
+   first and grades after.
+
 Detect the stack while you are there: `pyproject.toml` / `requirements.txt` / `package.json`, the
 web framework, the LLM SDK, and — the one that decides how much of the work is propagation —
 whether the request crosses a process boundary (a second service, a worker, a queue).

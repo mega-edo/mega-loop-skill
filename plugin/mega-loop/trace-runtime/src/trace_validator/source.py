@@ -85,19 +85,62 @@ _SKIP_DIRS = frozenset(
 )
 
 
+#: Extensions this grader can parse. Anything else it can see but not read.
+_READABLE = frozenset({".py"})
+
+#: Source extensions worth counting when deciding what a repository is written in. Enough to
+#: name the language in a message; not a package manifest, which a polyglot repo has several of.
+_LANGUAGES: dict[str, str] = {
+    ".py": "Python",
+    ".ts": "TypeScript",
+    ".tsx": "TypeScript",
+    ".js": "JavaScript",
+    ".jsx": "JavaScript",
+    ".mjs": "JavaScript",
+    ".go": "Go",
+    ".java": "Java",
+    ".kt": "Kotlin",
+    ".rb": "Ruby",
+    ".cs": "C#",
+    ".php": "PHP",
+    ".rs": "Rust",
+    ".ex": "Elixir",
+    ".scala": "Scala",
+    ".swift": "Swift",
+}
+
+
 class SourceGrade(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    scanned: int = 0  # python files read
+    scanned: int = 0  # files this grader could read
     checks: tuple[Check, ...] = ()
+    #: Language → file count for everything present, readable or not. A repository this grader
+    #: cannot parse must not be reported as clean: "no findings" and "nothing was read" look
+    #: identical on a board and mean opposite things.
+    languages: dict[str, int] = {}
 
     @property
     def findings(self) -> list[Check]:
         return [c for c in self.checks if c.failing]
 
     @property
+    def unreadable(self) -> dict[str, int]:
+        """Languages present in bulk that this grader has no parser for."""
+        return {
+            name: count
+            for name, count in self.languages.items()
+            if name != "Python" and count >= _UNREADABLE_MIN
+        }
+
+    @property
     def ok(self) -> bool:
         return not self.findings
+
+
+#: Below this a language is incidental — a build script, one helper — and saying "I cannot read
+#: your Go" about two files would be noise.
+_UNREADABLE_MIN = 5
 
 
 def _is_test(path: Path) -> bool:
@@ -207,6 +250,19 @@ def _kindless_span_sites(tree: ast.AST, root: Path, path: Path) -> list[str]:
     return hits
 
 
+def census(root: Path) -> dict[str, int]:
+    """Language → file count for what is actually in ROOT, readable or not."""
+    counts: dict[str, int] = {}
+    for path in root.rglob("*"):
+        language = _LANGUAGES.get(path.suffix)
+        if language is None or not path.is_file():
+            continue
+        if any(part in _SKIP_DIRS for part in path.parts):
+            continue
+        counts[language] = counts.get(language, 0) + 1
+    return dict(sorted(counts.items(), key=lambda kv: -kv[1]))
+
+
 def scan(root: Path) -> SourceGrade:
     """Grade the instrumentation visible in ROOT's Python sources."""
     files = python_files(root)
@@ -229,6 +285,7 @@ def scan(root: Path) -> SourceGrade:
 
     return SourceGrade(
         scanned=len(files),
+        languages=census(root),
         checks=(
             _noisy_check(noisy, len(files)),
             _kindless_check(kindless, len(files)),

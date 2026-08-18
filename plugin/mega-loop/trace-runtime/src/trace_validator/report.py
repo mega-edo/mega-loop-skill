@@ -108,6 +108,15 @@ def render_source(grade: SourceGrade) -> str:
     skill exists for — one request arriving as several traces — is not visible in source at all.
     """
     if not grade.scanned:
+        # Naming the language is the whole point. "Nothing found" reads as a pass to anyone
+        # skimming, and for a Go or Java repository it means the opposite: nothing was read.
+        seen = ", ".join(f"{n} ({c})" for n, c in list(grade.languages.items())[:4])
+        if seen:
+            return (
+                f"Read no source. This grader parses Python; this repository is {seen}.\n"
+                "  → Nothing here is a verdict on your instrumentation — grade real traces with "
+                "--platform instead, which is language-agnostic."
+            )
         return (
             "No Python files found to scan.\n"
             "  → Point --source at the repository root, or grade real traces with --platform."
@@ -133,6 +142,17 @@ def render_source(grade: SourceGrade) -> str:
         lines.append(f"{_TICK} Nothing the source can decide is wrong.")
         lines.append("")
 
+    # A clean Python board says nothing about the rest of a polyglot repository, and the reader
+    # most likely to be misled is the one whose agent is the part this grader cannot parse.
+    if grade.unreadable:
+        rest = ", ".join(f"{n} ({c})" for n, c in grade.unreadable.items())
+        lines.append(f"  {_WARN} Not read: {rest}. This grader parses Python only.")
+        lines.append(
+            "      → Whatever those files do with spans is unmeasured here. Grade real traces "
+            "with --platform to cover them."
+        )
+        lines.append("")
+
     lines.append(
         "This reads the source, so it answers only what the source decides. Fragmentation across "
         "a real hop, a platform's default span kind, and how much of a trace is mechanical all "
@@ -145,6 +165,9 @@ def render_source_json(grade: SourceGrade) -> str:
     payload: dict[str, Any] = {
         "scanned": grade.scanned,
         "ok": grade.ok,
+        # A caller deciding whether to trust `ok` needs to know what was read to produce it.
+        "languages": grade.languages,
+        "unreadable": grade.unreadable,
         "checks": [c.model_dump() for c in grade.checks],
     }
     return json.dumps(payload, indent=2, ensure_ascii=False)
