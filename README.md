@@ -73,7 +73,7 @@ Plain words work here too — *"are my traces good enough?"*, *"make my traces p
 
 **`/mega-loop:trace-gen`** — *"I emit nothing yet."* It reads your repository to decide what *one request* is, installs the kit for your stack, writes the spans, then runs your app and grades the traces that came out — because a codebase with no traces cannot be graded, only guessed at. Kits ship for **Python and Node**; on another language it says so and writes the spans against that language's own OpenTelemetry SDK instead of improvising a kit nobody has run.
 
-**`/mega-loop:trace-analyze`** — *"are my traces good enough?"* It grades them against the readiness contract MEGA Loop runs internally and hands back the exact fix for every finding, ordered by how many traces each one clears. Three of its fourteen checks are reported but never fatal: they ask whether a trace MEGA Loop *can* read actually holds anything worth detecting.
+**`/mega-loop:trace-analyze`** — *"are my traces good enough?"* It grades them against the readiness contract MEGA Loop runs internally and hands back the exact fix for every finding, ordered by how many traces each one clears. Four of its fifteen checks are reported but never fatal: they ask whether a trace MEGA Loop *can* read actually holds anything worth detecting, and what it costs to keep. Each finding also says whether it is mechanical — something `/mega-loop:trace-fix` can apply — or a design decision only you can make.
 
 **`/mega-loop:trace-fix`** — *"make them pass."* It applies the kit, works the findings in the order that clears the most traces, and re-runs the validator until every trace reaches `entry_seatable` — the verdict that means MEGA Loop can read it — reporting before and after.
 

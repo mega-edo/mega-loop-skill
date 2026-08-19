@@ -22,7 +22,7 @@ plugin/mega-loop/
 │   └── trace-gen.md · trace-analyze.md · trace-fix.md  → start / grade / repair tracing
 ├── trace-runtime/               the trace validator both trace-* skills share — maintained here
 │   ├── scripts/validate_traces.py   run with `uv run` — deps are self-contained
-│   ├── src/trace_validator/     the fourteen checks and the readiness contract
+│   ├── src/trace_validator/     the fifteen checks and the readiness contract
 │   ├── kits/{python,node}/      instrumentation templates to copy into a repo
 │   ├── references/              the trace spec, span kinds, context propagation
 │   ├── assets/                  good / broken example traces for a smoke test

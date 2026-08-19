@@ -32,7 +32,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict
 
 from trace_validator import contract as C
-from trace_validator.checks import Check
+from trace_validator.checks import FINDING_CLASS, Check
 
 #: Auto-instrumentors that emit one span per round-trip of something that is not agent work.
 #: Naming them individually rather than pattern-matching `*Instrumentor`: the LLM ones
@@ -293,6 +293,7 @@ def _uninstrumented_check(instrumented: bool, scanned: int) -> Check:
     """
     return Check(
         id="L0_any_instrumentation",
+        finding_class=FINDING_CLASS["L0_any_instrumentation"],
         tier="hard",
         verdict="pass" if instrumented else "fail",
         detail=(
@@ -351,6 +352,7 @@ def scan(root: Path) -> SourceGrade:
 def _noisy_check(hits: list[str], scanned: int) -> Check:
     return Check(
         id="L1_mechanical_autoinstrumentation",
+        finding_class=FINDING_CLASS["L1_mechanical_autoinstrumentation"],
         tier="soft",
         verdict="warn" if hits else "pass",
         detail=(
@@ -371,6 +373,7 @@ def _noisy_check(hits: list[str], scanned: int) -> Check:
 def _kindless_check(hits: list[str], scanned: int) -> Check:
     return Check(
         id="L2_span_kind_at_open",
+        finding_class=FINDING_CLASS["L2_span_kind_at_open"],
         tier="soft",
         verdict="warn" if hits else "pass",
         detail=(

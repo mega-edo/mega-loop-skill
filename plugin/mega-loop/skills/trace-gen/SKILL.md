@@ -132,7 +132,8 @@ Report what a reader can act on:
 `S3_detectable_work` warns when a trace holds nothing a detector reads. On a CRUD or health
 endpoint that is the true answer — the fix is to stop tracing it, not to add spans until the
 warning goes away. Same for `S2_signal_density`: turn auto-instrumentation off for the mechanical
-layers rather than burying them in more spans.
+layers rather than burying them in more spans. And `S4_payload_weight` warns when the trace is
+carrying the payload rather than describing it — put a reference on the span, not the bytes.
 
 ## Guardrails
 

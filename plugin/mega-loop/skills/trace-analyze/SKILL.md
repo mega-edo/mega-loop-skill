@@ -28,7 +28,7 @@ a throwaway environment, touching nothing in the user's project:
 # Against real traces (needs the platform's read credentials in the environment):
 uv run "${CLAUDE_PLUGIN_ROOT}/trace-runtime/scripts/validate_traces.py" --platform <langfuse|phoenix|langsmith> --last 50
 
-# Against the source, before any traces exist — no credentials required:
+# Against the source (Python only), before any traces exist — no credentials required:
 uv run "${CLAUDE_PLUGIN_ROOT}/trace-runtime/scripts/validate_traces.py" --source .
 
 # Against a single exported trace file:
@@ -56,7 +56,7 @@ whether the request crosses a process boundary (a second service, a worker, a qu
 
 ## The report: four questions, in priority order
 
-The validator rolls fourteen checks into one **verdict** per trace — the worst thing wrong wins.
+The validator rolls fifteen checks into one **verdict** per trace — the worst thing wrong wins.
 Present it as four answers, and keep question 4 on its own line, because it is **not** part of the
 verdict.
 
@@ -106,6 +106,10 @@ still be useless. Surface them on their own line so nobody reads a passing verdi
 - `S2_signal_density` — what fraction of spans carry neither a kind nor any text? Auto-instrumented
   database / HTTP / cache / queue spans are readable but pure noise; past half a trace you pay
   ingest and retention for spans nothing can use.
+- `S4_payload_weight` — how many bytes of attribute text does the trace carry? Past a megabyte
+  the trace is a second copy of the request's payload, stored again on every run and every retry.
+  A base64 image or a whole document inlined into `input.value` is the usual cause. The evidence
+  names the attribute, so the fix is "store a reference, not the bytes" — not "trace less".
 - `M7_token_usage` — do LLM spans record token counts? Without them cost, budget and
   cost-regression attribution are blind.
 
@@ -115,10 +119,35 @@ Every failing check is followed by a `→` line that says what to change. The su
 fixes by **how many traces each one clears** — a single missing root span usually explains a whole
 batch of `entry_missing` verdicts. Hand that ordered list to trace-fix; do not reorder it by taste.
 
+Each entry also says **who has to do it**, and that is the half to read out loud:
+
+- *trace-fix can apply this* — **mechanical**: setting an attribute on a span the code already
+  creates.
+- *needs your decision* — **architectural**: where spans come from, how context flows, what
+  reaches the exporter, whether this traffic belongs in a trace at all. More than one answer is
+  defensible, so it is a question for the developer, not an edit to apply on their behalf.
+
+Read the split back to them before offering the handoff. A plan that is all decisions is not a
+trace-fix job, and saying so is what keeps the offer worth taking up.
+
+Findings that moved no verdict are **not in that plan**. They get their own `Worth knowing`
+block, counted over every trace including the ones that passed — a trace can be `entry_seatable`
+and three megabytes heavy, and it appears nowhere else in the report. The four never-fatal checks
+always land there, but they are not the only ones that can: any check can warn without changing a
+verdict, so read the block rather than expecting a fixed list. Keep all of it out of the fix
+ordering when you relay it: ranking a warning that clears nothing above the check that decides
+whether a request can be re-run is how a correct list becomes a misleading one.
+
+The report closes with a **`Score:` line** — `n/total entry_seatable (pct%) · verdict`. It is one
+line on purpose: it pastes into a status update, and re-running after the fix gives a second one
+to set beside it. Point the user at it; the before/after pair is the thing they will be asked for.
+
 ## Handoffs
 
 - The user wants to **apply** the fixes → switch to **trace-fix** (`/mega-loop:trace-fix`),
-  and give it this report so it starts from the before-number.
+  and give it this report so it starts from the `Score:` line. Hand over the **mechanical**
+  entries; walk the architectural ones with the user first, because trace-fix would be guessing
+  at a decision only they can make.
 - Verdicts are clean and applicability is fine → the traces are ready; suggest
   **`/mega-loop:connect`** to point MEGA Loop at the project and see the bugs it finds.
 
@@ -126,7 +155,7 @@ batch of `entry_missing` verdicts. Hand that ordered list to trace-fix; do not r
 
 - **Read-only.** Never edit the user's code or the contract here — this skill reports.
 - **`entry_seatable` is not a promise of a fix.** It means the trace is readable. Say that, not more.
-- **Applicability is advice, not a defect.** `S2` / `S3` / `M7` never block. Report the ratio and the
+- **Applicability is advice, not a defect.** `S2` / `S3` / `S4` / `M7` never block. Report the ratio and the
   way out; do not tell the user their instrumentation is "broken" when it is merely expensive or
   not agent traffic.
 - **Never invent a `file:line`.** In `--source` mode report a location only when a finding anchors

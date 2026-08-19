@@ -76,12 +76,23 @@ No `uv`? `pip install pydantic httpx` once, then use `python` in place of `uv ru
 
 ## Applicability is not a bug to fix
 
-`S2_signal_density`, `S3_detectable_work` and `M7_token_usage` are warnings, never failures — do not
-"fix" code to silence them:
+`S2_signal_density`, `S3_detectable_work`, `S4_payload_weight` and `M7_token_usage` are warnings,
+never failures — do not "fix" code to silence them:
 - All-CHAIN, nothing to detect (`S3`) → if it is an agent request, **label** the steps (model call
   LLM, its calls TOOL / RETRIEVER). If it is a CRUD or health endpoint, it is simply not agent
   traffic — the fix is to stop tracing it, not to add spans.
 - Noisy trace (`S2`) → turn off auto-instrumentation for the mechanical layers, don't add more spans.
+- Heavy trace (`S4`) → the span is carrying the payload itself, usually a base64 image or a whole
+  document in `input.value`. Store a reference — a URL, key or hash — or truncate to a readable
+  prefix. Deleting the attribute outright trades one warning for an `S1_step_io` failure.
+
+## What this verb does not take on
+
+A finding the report marks **needs your decision** is architectural: where spans come from, how
+context flows, what reaches the exporter, whether the traffic belongs in a trace at all. Two field
+pilots skipped this skill entirely because their findings were all of that kind. Apply the
+**mechanical** entries, and put the rest to the user as a choice — an automated pass that guesses
+at a design decision is worse than no pass, because the developer now has to review it too.
 
 ## Handoffs
 
