@@ -17,6 +17,15 @@ granted access, or you are not signed in to GitHub on this machine.
 while signed in. If you get a 404 there, you do not have access yet — ask your MEGA Loop contact.
 Then run the command again.
 
+### Installing says a required option is not set
+
+**Cause.** Not an error — the install succeeded. Both config keys are declared required, but only
+`api_token` has no default, so it is the one Claude Code reports as not yet set.
+
+**Fix.** Nothing, if you are starting with `/mega-loop:trace-gen`, `/mega-loop:trace-analyze` or
+`/mega-loop:trace-fix` — those run the validator locally and never read the token. To list or fix
+bugs, set it: `/plugin` → **mega-loop** → **configure** → the masked `api_token` field, then restart.
+
 ### The `/mega-loop:…` commands do not exist after installing
 
 **Cause.** The plugin's server is loaded when Claude Code starts, so a session that was already

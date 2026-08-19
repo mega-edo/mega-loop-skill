@@ -41,10 +41,12 @@ so there is no separate command file for them.
 
 Two values, both set through `/plugin` → **mega-loop** → **configure**:
 
-| Key | Sensitive | What it is |
-|---|---|---|
-| `base_url` | no | The MEGA Loop server, no trailing slash. `https://loop.megacode.ai` (production), `https://loop-beta.megacode.ai` (beta), `http://localhost:18000` (local stack). |
-| `api_token` | **yes** | A personal access token (`mlp_…`). Goes into the OS keychain, never a file. Generated on the web only. |
+| Key | Required | Sensitive | What it is |
+|---|---|---|---|
+| `base_url` | yes | no | The MEGA Loop server, no trailing slash. `https://loop.megacode.ai` (production), `https://loop-beta.megacode.ai` (beta), `http://localhost:18000` (local stack). Has a default, so the install line may omit it. |
+| `api_token` | yes | **yes** | A personal access token (`mlp_…`). Goes into the OS keychain, never a file. Generated on the web only. |
+
+Both are declared required, but only `api_token` has no default — so an install that passes neither still succeeds and reports that one option as not yet set. The three `trace-*` skills run anyway — they call the validator locally and never touch the MCP server — while every skill that reads or fixes a bug answers `unauthorized` until `api_token` is set.
 
 There is no login command and no email/password path. Authentication is the token, and only the
 token.
