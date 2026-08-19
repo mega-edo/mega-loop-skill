@@ -11,7 +11,7 @@
     "base_url": {
       "type": "string",
       "title": "mega-loop base URL",
-      "description": "Root URL of your mega-loop server, no trailing slash. Production: https://loop.megacode.ai. Local dev stack: http://localhost:18000.",
+      "description": "Root URL of your mega-loop server, no trailing slash. Production: https://loop.megacode.ai. Beta: https://loop-beta.megacode.ai. Local dev stack: http://localhost:18000.",
       "required": true,
       "default": "https://loop.megacode.ai"
     },

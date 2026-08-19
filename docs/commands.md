@@ -49,8 +49,9 @@ nobody has run, and offers to write the spans against that language's own OpenTe
 attribute names are the same strings either way.
 
 **trace-analyze** — *"are my traces good enough for MEGA Loop?"* · `/mega-loop:trace-analyze`
-Read only. Grades your traces — or your source, before any traces exist — against the same fourteen
-checks MEGA Loop runs internally, and answers four questions per trace:
+Read only. Grades your traces — or your source, before any traces exist — against the readiness
+contract MEGA Loop runs internally — fourteen checks, three of them reported but never fatal — and
+answers four questions per trace:
 
 1. **Can the request be re-run at all?** — the verdict (`entry_missing` → `detection_gap` →
    `degraded` → `entry_seatable`).
@@ -149,8 +150,10 @@ Before it may say **verified**, it has to pass five checks:
 Everything is run for real. Faking an external call to force a green result is not allowed, and if
 a check genuinely cannot be run, it is named and skipped rather than quietly claimed.
 
-Then it opens a **draft** PR — `gh` for GitHub, `glab` for GitLab, a push URL for Bitbucket — and
-reports the evidence back to MEGA Loop.
+Then it opens a **draft** PR — `gh` for GitHub, `glab` for GitLab, and on Bitbucket the REST API
+when an app password is configured. Without one, Bitbucket gets you the pushed branch and the
+"Create pull request" URL from the push output, and you open it yourself. Either way it reports the
+evidence back to MEGA Loop.
 
 **No PR possible?** The work still counts. You get the branch, a patch file, and instructions,
 and the dashboard records it honestly as "Verified — PR blocked".
