@@ -23,7 +23,7 @@ then use `python`.
 ## Maintain it
 
 ```bash
-uv run --extra dev pytest        # the fourteen checks, plus the contract-drift guardrail
+uv run --extra dev pytest        # the fifteen checks, plus the contract-drift guardrail
 ```
 
 - `src/trace_validator/contract.py` — the single file mirroring MEGA Loop's contract, each constant

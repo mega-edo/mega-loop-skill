@@ -50,18 +50,22 @@ attribute names are the same strings either way.
 
 **trace-analyze** — *"are my traces good enough for MEGA Loop?"* · `/mega-loop:trace-analyze`
 Read only. Grades your traces — or your source, before any traces exist — against the readiness
-contract MEGA Loop runs internally — fourteen checks, three of them reported but never fatal — and
+contract MEGA Loop runs internally — fifteen checks, four of them reported but never fatal — and
 answers four questions per trace:
 
 1. **Can the request be re-run at all?** — the verdict (`entry_missing` → `detection_gap` →
    `degraded` → `entry_seatable`).
 2. **Will failures be seen?** — error status and step input/output.
 3. **Where are spans malformed?** — fragmentation, missing span kinds, and the rest.
-4. **Is the trace worth it to MEGA Loop?** — a separate, never-fatal line: a trace can be perfectly
-   readable and still hold nothing to detect (all CHAIN, mostly mechanical noise, no token counts).
+4. **Is the trace worth it, and what does it cost?** — a separate, never-fatal line: a trace can be
+   perfectly readable and still hold nothing to detect (all CHAIN, mostly mechanical noise, no
+   token counts), or carry megabytes of its own payload on every run.
 
-Every finding comes with the exact fix, and the summary orders them by how many traces each clears.
-It never edits your code.
+Every finding comes with the exact fix, marked *mechanical* (trace-fix can apply it) or *needs your
+decision*, and the summary orders them by how many traces each clears. The four never-fatal checks
+sit in their own `Worth knowing` block rather than the fix plan, so advice is never ranked above a
+blocker. It closes with a one-line `Score:` to paste into a status update and to diff against after
+the fix. It never edits your code.
 
 **trace-fix** — *"make my traces pass"* · `/mega-loop:trace-fix`
 Edits your instrumentation: applies the kit, works the findings top-down, and re-runs the validator

@@ -14,14 +14,16 @@ import json
 from typing import Any
 
 from trace_validator import contract as C
-from trace_validator.checks import SampleGrade, TraceGrade, fix_summary
+from trace_validator.checks import (
+    SampleGrade,
+    TraceGrade,
+    applicability_summary,
+    fix_summary,
+)
 from trace_validator.source import SourceGrade
 
 _TICK, _CROSS, _WARN = "✓", "✗", "!"
 
-#: Sites printed per finding before the tail is folded into a count. Enough to see the shape of
-#: the problem; short enough that a board with several findings still fits on one screen.
-_SITES_SHOWN = 5
 _MAX_TRACE_DETAIL = 8  # beyond this the per-trace list stops teaching and starts scrolling
 
 
@@ -40,6 +42,72 @@ def _plural(count: int, noun: str, plural: str | None = None) -> str:
     return f"{count} {plural or noun + 's'}"
 
 
+def _handoff_lines(fixes: list[dict[str, Any]]) -> list[str]:
+    """Say plainly how much of the plan can be automated.
+
+    Without this the reader has to work out for themselves that half their findings are design
+    questions — which is what actually happened in the field, twice, and cost the fix verb its
+    first two users.
+    """
+    mech = sum(1 for f in fixes if f["finding_class"] == C.MECHANICAL)
+    arch = len(fixes) - mech
+    if mech and arch:
+        rest = (
+            "The other is a design decision; make that yourself first."
+            if arch == 1
+            else f"The other {arch} are design decisions; make those yourself first."
+        )
+        message = (
+            f"{_plural(mech, 'of these is', 'of these are')} mechanical — "
+            f"`/mega-loop:trace-fix` can apply {'it' if mech == 1 else 'them'}. {rest}"
+        )
+    elif mech:
+        # No count in these two branches: "all" and "none" already say it, and a count forced
+        # into the sentence only creates a plural to get wrong.
+        message = "Every finding here is mechanical — `/mega-loop:trace-fix` can apply them."
+    else:
+        message = (
+            "No finding here is mechanical. Each is a design decision about where spans come "
+            "from or what belongs in a trace, so trace-fix would be guessing — read the fixes "
+            "and choose."
+        )
+    return [message]
+
+
+def _applicability_lines(sample: SampleGrade) -> list[str]:
+    """The never-fatal findings, on their own line, counted over the whole sample.
+
+    They are kept out of the fix plan on purpose — see ``fix_summary`` — and without a line of
+    their own a warning on an otherwise-clean trace reaches nobody: the trace is
+    ``entry_seatable``, so no per-trace block is printed for it. The check that measures payload
+    weight is the case that made this visible, and it is the case it exists for.
+    """
+    entries = applicability_summary(list(sample.traces))
+    if not entries:
+        return []
+    lines = ["Worth knowing — none of these change a verdict:"]
+    for entry in entries:
+        cleared = _plural(entry["traces"], "trace")
+        sites = f" — {', '.join(entry['evidence'])}" if entry["evidence"] else ""
+        lines.append(f"  {_WARN} {', '.join(entry['checks'])} · {cleared}{sites}")
+        lines.append(f"      → {entry['fix']}")
+    return lines + [""]
+
+
+def _scoreline(sample: SampleGrade) -> list[str]:
+    """One line to paste into a status update, and to diff against after the fix.
+
+    A developer who improves their instrumentation has to be able to say by how much. Assembling
+    that from the headline by hand is work we can just do for them.
+    """
+    ok, total = sample.ok_count, len(sample.traces)
+    pct = round(100 * ok / total) if total else 0
+    return [
+        f"Score: {ok}/{total} entry_seatable ({pct}%) · {sample.verdict}",
+        "  → Re-run this after fixing and compare the two Score lines.",
+    ]
+
+
 def render_trace(grade: TraceGrade) -> list[str]:
     head = f"trace {_short(grade.trace_id)}"
     if grade.label:
@@ -47,7 +115,8 @@ def render_trace(grade: TraceGrade) -> list[str]:
     lines = [f"{head}   verdict: {grade.verdict}"]
     for check in grade.failures():
         evidence = f" — {', '.join(check.evidence)}" if check.evidence else ""
-        lines.append(f"  {_mark(check.verdict)} {check.id} — {check.detail}{evidence}")
+        who = C.FINDING_CLASS_GLOSS[check.finding_class]
+        lines.append(f"  {_mark(check.verdict)} {check.id} [{who}] — {check.detail}{evidence}")
         lines.append(f"      → {check.fix}")
     return lines
 
@@ -87,8 +156,11 @@ def render(sample: SampleGrade, *, checked: int) -> str:
         for i, entry in enumerate(fixes, start=1):
             lines.append(f"  {i}. {entry['fix']}")
             cleared = _plural(entry["traces"], "trace")
-            lines.append(f"     clears {cleared} · {', '.join(entry['checks'])}")
+            checks = ", ".join(entry["checks"])
+            who = C.FINDING_CLASS_GLOSS[entry["finding_class"]]
+            lines.append(f"     clears {cleared} · {checks} · {who}")
         lines.append("")
+        lines += _handoff_lines(fixes) + [""]
 
     gloss = C.VERDICT_GLOSS.get(sample.verdict, "")
     lines.append(f"Sample verdict: {sample.verdict}" + (f" — {gloss}" if gloss else ""))
@@ -97,6 +169,8 @@ def render(sample: SampleGrade, *, checked: int) -> str:
             "This means MEGA Loop can read these traces. Whether a given failure becomes a "
             "bug it can fix also depends on the failure itself."
         )
+    lines += _applicability_lines(sample)
+    lines += _scoreline(sample) + [""]
     lines.append("Reference: references/trace-spec.md")
     return "\n".join(lines)
 
@@ -124,13 +198,14 @@ def render_source(grade: SourceGrade) -> str:
 
     lines = [f"Scanned {_plural(grade.scanned, 'Python file')}", ""]
     for check in grade.findings:
+        who = C.FINDING_CLASS_GLOSS[check.finding_class]
         lines.append(
-            f"  {_mark(check.verdict)} {check.id} — {check.detail} "
+            f"  {_mark(check.verdict)} {check.id} [{who}] — {check.detail} "
             f"({_plural(check.fail_count, 'site')})"
         )
         # Truncated for the reader, not on the record: `--json` carries every site, so a caller
         # can open all of them while a terminal shows the first handful.
-        shown = check.evidence[:_SITES_SHOWN]
+        shown = check.evidence[: C.EVIDENCE_LIMIT]
         for site in shown:
             lines.append(f"      {site}")
         if len(check.evidence) > len(shown):
@@ -191,7 +266,13 @@ def render_json(sample: SampleGrade, *, checked: int) -> str:
                 "label": t.label,
                 "verdict": t.verdict,
                 "failures": [
-                    {"id": c.id, "verdict": c.verdict, "fix": c.fix, "evidence": list(c.evidence)}
+                    {
+                        "id": c.id,
+                        "verdict": c.verdict,
+                        "finding_class": c.finding_class,
+                        "fix": c.fix,
+                        "evidence": list(c.evidence),
+                    }
                     for c in t.failures()
                 ],
             }

@@ -385,3 +385,97 @@ def test_a_textless_wrapper_the_detector_reads_is_not_opaque() -> None:
         ],
     ]
     assert opaque_spans(spans) == []
+
+
+# --- S4_payload_weight --------------------------------------------------------
+
+
+def _heavy_span(size: int, **overrides: object) -> object:
+    """One LLM span whose input is `size` bytes — the base64-image shape, minus the base64."""
+    return span(
+        span_kind="LLM",
+        name="describe_image",
+        attributes={
+            "openinference.span.kind": "LLM",
+            "input.value": "x" * size,
+            "output.value": "a cat",
+        },
+        **overrides,
+    )
+
+
+def test_a_trace_that_carries_its_own_payload_is_reported() -> None:
+    check = next(c for c in grade([_heavy_span(2_000_000)]).checks if c.id == "S4_payload_weight")
+    assert check.verdict == "warn"
+    assert "2.0 MB" in check.detail
+
+
+def test_the_report_names_the_attribute_the_bytes_went_into() -> None:
+    """A size with no location is not a fix. The evidence has to say which key to change."""
+    check = next(c for c in grade([_heavy_span(2_000_000)]).checks if c.id == "S4_payload_weight")
+    assert check.evidence
+    assert "input.value" in check.evidence[0]
+    assert "describe_image" in check.evidence[0]
+
+
+def test_an_ordinary_trace_is_not_called_heavy() -> None:
+    assert verdict_of([_heavy_span(200)], "S4_payload_weight") == "pass"
+
+
+def test_weight_never_lowers_the_verdict() -> None:
+    """Soft means soft. A 20 MB trace MEGA Loop can read is still one MEGA Loop can read —
+    the cost is the developer's platform bill, which is advice, not a defect."""
+    graded = grade(
+        [
+            span(
+                span_id="root",
+                name="run_agent",
+                span_kind="CHAIN",
+                attributes={"openinference.span.kind": "CHAIN", "input.value": "hello"},
+            ),
+            _heavy_span(20_000_000, span_id="child", parent_id="root"),
+        ]
+    )
+    assert next(c for c in graded.checks if c.id == "S4_payload_weight").verdict == "warn"
+    assert graded.verdict == "entry_seatable"
+
+
+# --- finding class ------------------------------------------------------------
+
+
+def test_every_check_says_who_has_to_fix_it(tmp_path) -> None:
+    """A check that reaches a report without a class is a mistake to hear about at the call site.
+
+    Both graders, and equality rather than containment: an entry left behind by a deleted check
+    is drift in the other direction, and the map is only useful while it is exactly the set.
+    """
+    from pathlib import Path
+
+    from trace_validator.checks import FINDING_CLASS
+    from trace_validator.source import scan
+
+    Path(tmp_path / "app.py").write_text(
+        "from opentelemetry import trace\ntracer = trace.get_tracer(__name__)\n",
+        encoding="utf-8",
+    )
+    produced = {c.id for c in grade([span()]).checks} | {c.id for c in scan(tmp_path).checks}
+    assert produced == set(FINDING_CLASS), produced ^ set(FINDING_CLASS)
+
+
+def test_a_class_is_one_of_the_two_words_the_report_can_render() -> None:
+    from trace_validator import contract as C
+    from trace_validator.checks import FINDING_CLASS
+
+    assert set(FINDING_CLASS.values()) <= set(C.FINDING_CLASS_GLOSS)
+    assert all(c.finding_class in C.FINDING_CLASS_GLOSS for c in grade([span()]).checks)
+
+
+def test_a_propagation_finding_is_never_offered_as_automatable() -> None:
+    """The two findings that cost trace-fix its first users. Both are decisions."""
+    from trace_validator import contract as C
+
+    graded = grade([span()])
+    by_id = {c.id: c for c in graded.checks}
+    assert by_id["M2_tree_intact"].finding_class == C.ARCHITECTURAL
+    assert by_id["R1b_clean_root"].finding_class == C.ARCHITECTURAL
+    assert by_id["S1_step_io"].finding_class == C.MECHANICAL

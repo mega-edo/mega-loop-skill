@@ -211,6 +211,62 @@ OPAQUE_MIN_SPANS = 8
 #: Keys that make a span worth reading even without a kind. Any one of them is enough.
 SIGNAL_KEYS = ("input.value", "output.value", "llm.input_messages", "llm.output_messages")
 
+# --- payload weight (this skill) ----------------------------------------------
+#
+# Also not mirrored: MEGA Loop reads whatever it is given and has no opinion on how heavy a
+# trace is. The cost lands on the developer's platform bill and on every retry of the same
+# request, which is why it is reported and never fatal.
+
+#: A trace heavier than this is worth telling the developer about. One megabyte is roughly where
+#: a trace stops being a record of a request and starts being a second copy of its payload — an
+#: agent that inlines a base64 image, a whole document or a page of scraped HTML crosses it on a
+#: single span. Chosen to sit under the 4 MB default OTLP message limit, so a trace that trips
+#: this is still being delivered but is already close to the edge where spans get dropped.
+PAYLOAD_TRACE_WARN_BYTES = 1_000_000
+
+#: Attributes lighter than this never appear as evidence. Naming a 300-byte prompt beside a
+#: 20 MB image teaches the reader nothing about where their bytes went.
+PAYLOAD_ATTR_MIN_BYTES = 50_000
+
+# --- what a finding asks of the developer (this skill) ------------------------
+#
+# Every check is one of two kinds of work, and the difference decides whether trace-fix can act
+# on it. A *mechanical* finding is satisfied by setting an attribute on a span the code already
+# creates. An *architectural* one asks where spans come from, how context flows, what reaches
+# the exporter, or whether this traffic is worth tracing at all — questions with more than one
+# defensible answer, which is a decision to put in front of the developer rather than an edit to
+# apply for them.
+#
+# The vocabulary lives here because report.py renders it; which check is which lives in
+# checks.py, beside the ids it keys.
+
+MECHANICAL = "mechanical"
+ARCHITECTURAL = "architectural"
+
+#: How each class reads to a developer. The wording is the handoff contract: someone who reads
+#: "trace-fix can apply this" should be able to run that verb and have it work.
+FINDING_CLASS_GLOSS = {
+    MECHANICAL: "trace-fix can apply this",
+    ARCHITECTURAL: "needs your decision",
+}
+
+#: The checks with no ``fail`` branch: they warn, and ``rollup`` moves a verdict only on a
+#: ``fail``. They belong on their own line rather than in the fix plan — a trace can be
+#: ``entry_seatable`` and still trip one, and a plan that mixes them ranks advice above the
+#: check that decides whether a request can be re-run at all.
+NEVER_FATAL = frozenset(
+    {
+        "S2_signal_density",
+        "S3_detectable_work",
+        "S4_payload_weight",
+        "M7_token_usage",
+    }
+)
+
+#: Sites named per finding before the tail is folded into a count. One number, because a reader
+#: widening the evidence should not have to find four of them.
+EVIDENCE_LIMIT = 5
+
 # --- verify traffic (mega_loop/normalize.py, adr/0008) ------------------------
 
 #: MEGA Loop stamps its own verification re-runs and excludes them from detection. A developer's

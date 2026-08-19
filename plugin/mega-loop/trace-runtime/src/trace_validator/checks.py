@@ -1,4 +1,4 @@
-"""The fourteen checks, and the verdict they roll up to.
+"""The fifteen checks, and the verdict they roll up to.
 
 This mirrors `mega_loop/readiness.py` — same ids, same tiers, same order of precedence — with one
 addition: every check carries a **fix**. Upstream only has to explain a verdict to an operator
@@ -15,7 +15,8 @@ from __future__ import annotations
 
 import re
 from contextlib import suppress
-from typing import Any
+from heapq import nlargest
+from typing import Any, NamedTuple
 
 from pydantic import BaseModel, ConfigDict
 
@@ -36,6 +37,9 @@ class Check(BaseModel):
     sample_size: int
     fail_count: int
     evidence: tuple[str, ...] = ()  # span labels that tripped it, for a nameable fix
+    #: mechanical (trace-fix can apply it) | architectural (a decision for the developer).
+    #: Required, so a check cannot reach a report without answering who has to act on it.
+    finding_class: str
 
     @property
     def failing(self) -> bool:
@@ -73,6 +77,32 @@ class SampleGrade(BaseModel):
 
 def _label(span: Span) -> str:
     return span.name or span.span_id or "<unnamed span>"
+
+
+#: Which class each check falls into — see ``contract.MECHANICAL`` for what the two mean. Keyed
+#: by id and kept in one block rather than passed at each call site, because the useful question
+#: a reader asks is "which of these are decisions?", and that is only answerable from a list.
+#: The L-family is source mode (``source.py``); the rest are graded from traces.
+FINDING_CLASS = {
+    "L0_any_instrumentation": C.ARCHITECTURAL,  # whether to trace at all
+    "L1_mechanical_autoinstrumentation": C.ARCHITECTURAL,  # which instrumentation runs
+    "L2_span_kind_at_open": C.MECHANICAL,  # the source-mode twin of M1_kind_present
+    "R0_addressable": C.ARCHITECTURAL,  # an exporter or serializer, not the instrumentation
+    "R1_entry_seat": C.MECHANICAL,
+    "R1b_clean_root": C.ARCHITECTURAL,  # where the entry span lives is a design choice
+    "R3_error_status": C.MECHANICAL,
+    "M1_kind_present": C.MECHANICAL,
+    "M2_tree_intact": C.ARCHITECTURAL,  # propagation and provider topology
+    "M3_duration_sane": C.MECHANICAL,
+    "M4_index_contiguous": C.MECHANICAL,
+    "M5_status_coherent": C.MECHANICAL,
+    "M6_role_known": C.MECHANICAL,
+    "M7_token_usage": C.MECHANICAL,
+    "S1_step_io": C.MECHANICAL,
+    "S2_signal_density": C.ARCHITECTURAL,  # which instrumentation runs at all
+    "S3_detectable_work": C.ARCHITECTURAL,  # whether this traffic belongs in the sample
+    "S4_payload_weight": C.ARCHITECTURAL,  # storing a reference instead of the bytes
+}
 
 
 # --- R-family: entry seat + detection-side spec -------------------------------
@@ -221,6 +251,86 @@ def step_spans_missing_io(spans: list[Span]) -> list[Span]:
     return [s for s in spans if s.span_kind in C.STEP_KINDS and not carries_signal(s)]
 
 
+def _attr_bytes(value: Any) -> int:
+    """UTF-8 length of one attribute value, as it travels on the wire.
+
+    ``isascii()`` reads a flag off the string header, so the values this check exists to catch —
+    base64, JSON, scraped HTML, all ASCII — are measured without encoding anything. Encoding a
+    20 MB attribute just to call ``len`` on the result would allocate the very copy the check is
+    warning about; the fallback keeps the number exact for everything else.
+    """
+    text = str(value)
+    return len(text) if text.isascii() else len(text.encode("utf-8"))
+
+
+class HeavyAttribute(NamedTuple):
+    span: Span
+    key: str
+    size: int
+
+
+class PayloadWeight(NamedTuple):
+    total: int
+    heaviest: list[HeavyAttribute]
+    by_span: list[tuple[Span, int]]
+
+
+def payload_weight(spans: list[Span]) -> PayloadWeight:
+    """Total attribute text in the trace, the individual attributes carrying the bulk, and the
+    per-span totals.
+
+    One walk for all three: the heavy test is an integer compare on a size the total already
+    needed, and measuring a multi-megabyte attribute twice is the mistake this check reports.
+
+    ``by_span`` is the fallback that keeps the finding actionable. A trace can cross the
+    threshold without any single attribute crossing it — forty spans each carrying 40 kB is a
+    heavy trace with no heavy attribute — and a size with no location is not a fix.
+
+    Attribute values only — span ids, timestamps and the envelope are the same handful of bytes
+    on every trace and tell the developer nothing they can change.
+    """
+    total = 0
+    heavy: list[HeavyAttribute] = []
+    by_span: list[tuple[Span, int]] = []
+    for span in spans:
+        span_total = 0
+        for key, value in span.attributes.items():
+            size = _attr_bytes(value)
+            span_total += size
+            if size >= C.PAYLOAD_ATTR_MIN_BYTES:
+                heavy.append(HeavyAttribute(span, key, size))
+        total += span_total
+        by_span.append((span, span_total))
+    return PayloadWeight(total, heavy, by_span)
+
+
+def _human_bytes(size: int) -> str:
+    """Bytes in the unit a developer would say out loud. 22 MB, not 23068672."""
+    for unit, step in (("GB", 1_000_000_000), ("MB", 1_000_000), ("kB", 1_000)):
+        if size >= step:
+            return f"{size / step:.1f} {unit}"
+    return f"{size} B"
+
+
+def _heaviest_labels(weight: PayloadWeight) -> tuple[str, ...]:
+    """Where the bytes went, biggest first.
+
+    Per attribute when one is individually large enough to be the answer; per span when the
+    weight is spread thin, because "no attribute is heavy and the trace still is" is a different
+    problem with a different fix. ``nlargest`` and not a full sort: a trace that inlines a
+    document on every span has a hundred candidates and five slots.
+    """
+    if weight.heaviest:
+        return tuple(
+            f"{_label(row.span)} ({row.key}, {_human_bytes(row.size)})"
+            for row in nlargest(C.EVIDENCE_LIMIT, weight.heaviest, key=lambda row: row.size)
+        )
+    return tuple(
+        f"{_label(span)} ({_human_bytes(size)})"
+        for span, size in nlargest(C.EVIDENCE_LIMIT, weight.by_span, key=lambda row: row[1])
+    )
+
+
 def _total_tokens(span: Span) -> int | None:
     """Reported total token usage, derived from the parts when the total itself is absent."""
     total = span.attributes.get(C.OI_TOK_TOTAL)
@@ -277,17 +387,33 @@ def _check(
     fix: str,
     n: int,
     failing: list[Span] | int,
+    evidence: tuple[str, ...] | None = None,
 ) -> Check:
+    """The one place a graded Check is built.
+
+    ``evidence`` defaults to the deduped labels of the failing spans, which is what a reader
+    wants for fourteen of the fifteen checks. A check whose evidence is a measurement rather
+    than a location passes its own; keeping that a parameter rather than a second constructor
+    is what stops the two drifting.
+
+    ``FINDING_CLASS[id_]`` and not ``.get`` — a check with no class is a mistake to hear about
+    at the call site, not a default to inherit silently.
+    """
     spans = failing if isinstance(failing, list) else []
     return Check(
         id=id_,
+        finding_class=FINDING_CLASS[id_],
         tier=tier,
         verdict=verdict,
         detail=detail,
         fix=fix,
         sample_size=n,
         fail_count=len(spans) if isinstance(failing, list) else failing,
-        evidence=tuple(dict.fromkeys(_label(s) for s in spans))[:5],
+        evidence=(
+            evidence
+            if evidence is not None
+            else tuple(dict.fromkeys(_label(s) for s in spans))[: C.EVIDENCE_LIMIT]
+        ),
     )
 
 
@@ -372,9 +498,11 @@ def grade(spans: list[Span]) -> TraceGrade:
         "fail" if dangling else "pass",
         "A dangling parent breaks root detection and subtree ancestry — this is what a "
         "fragmented request looks like from the outside.",
-        "Propagate trace context across the hop: carry the W3C `traceparent` header into the "
-        "next service or task so its spans stay in this trace. See "
-        "references/context-propagation.md.",
+        "If the spans are made in one process, the usual cause is a second TracerProvider — the "
+        "later one orphans everything it creates, which is why this often passes in dev and "
+        "fails in production. Install one provider globally. If the request really does cross "
+        "into another service, a worker or a queue, carry the W3C `traceparent` header across. "
+        "See references/context-propagation.md.",
         n,
         dangling,
     )
@@ -490,7 +618,29 @@ def grade(spans: list[Span]) -> TraceGrade:
         0 if detectable else 1,
     )
 
-    checks = (r0, r1, r1b, r3, m1, m2, m3, m4, m5, m6, m7, s1, s2, s3)
+    weight = payload_weight(spans)
+    too_heavy = weight.total > C.PAYLOAD_TRACE_WARN_BYTES
+    # Evidence only when it will be read: a passing check's is never rendered, and the labels
+    # come from the same walk either way. Reported, never fatal — a heavy trace is still a
+    # readable one, and the cost is a platform bill the developer is the one to weigh.
+    s4 = _check(
+        "S4_payload_weight",
+        "soft",
+        "warn" if too_heavy else "pass",
+        f"This trace carries {_human_bytes(weight.total)} of attribute text — at that size the "
+        "trace is a second copy of the request's payload, stored again on every run and every "
+        "retry.",
+        "Read the evidence first: one attribute carrying most of it is a blob inlined into the "
+        "span — base64 image or document data in `input.value` is the usual shape — and the fix "
+        "is to record a reference instead, the object's URL, key or hash. Weight spread evenly "
+        "across spans is the other case, and there the fix is to truncate each span's text to a "
+        "readable prefix. Detection reads the text, not the whole file.",
+        1,
+        1 if too_heavy else 0,
+        evidence=_heaviest_labels(weight) if too_heavy else (),
+    )
+
+    checks = (r0, r1, r1b, r3, m1, m2, m3, m4, m5, m6, m7, s1, s2, s3, s4)
     root_label = roots[0].name if len(roots) == 1 else ""
     return TraceGrade(
         trace_id=spans[0].trace_id,
@@ -536,7 +686,7 @@ def grade_sample(traces: list[list[Span]]) -> SampleGrade:
                 update={
                     "sample_size": len(graded),
                     "fail_count": sum(1 for c in per if c.failing),
-                    "evidence": evidence[:5],
+                    "evidence": evidence[: C.EVIDENCE_LIMIT],
                 }
             )
         )
@@ -559,17 +709,60 @@ def group_by_trace(spans: list[Span]) -> list[list[Span]]:
     return list(by_trace.values())
 
 
-def fix_summary(traces: list[TraceGrade]) -> list[dict[str, Any]]:
-    """Distinct fixes, most-clearing first.
-
-    One missing root span usually explains every failing trace in the sample. Printing that fix
-    forty times reads as forty problems and buries the two that are actually different.
-    """
+def _group_by_fix(
+    traces: list[TraceGrade], ids: set[str] | None, exclude: bool
+) -> list[dict[str, Any]]:
     by_fix: dict[str, dict[str, Any]] = {}
     for grade_ in traces:
         for check in grade_.failures():
-            entry = by_fix.setdefault(check.fix, {"fix": check.fix, "checks": set(), "traces": 0})
+            if ids is not None and (check.id in ids) is exclude:
+                continue
+            entry = by_fix.setdefault(
+                check.fix,
+                {
+                    "fix": check.fix,
+                    "checks": set(),
+                    "traces": 0,
+                    "finding_class": C.MECHANICAL,
+                    "evidence": [],
+                },
+            )
             entry["checks"].add(check.id)
             entry["traces"] += 1
+            # Evidence from across the group, deduped and capped. A rolled-up finding still has
+            # to say where to look, and one trace's sites are rarely the whole story.
+            for site in check.evidence:
+                if site not in entry["evidence"] and len(entry["evidence"]) < C.EVIDENCE_LIMIT:
+                    entry["evidence"].append(site)
+            # One fix can be reached by two checks. If either of them is a decision, the whole
+            # entry is — an automated pass that applies half of a fix is worse than none.
+            if check.finding_class == C.ARCHITECTURAL:
+                entry["finding_class"] = C.ARCHITECTURAL
     ranked = sorted(by_fix.values(), key=lambda e: -e["traces"])
     return [{**e, "checks": sorted(e["checks"])} for e in ranked]
+
+
+def fix_summary(traces: list[TraceGrade]) -> list[dict[str, Any]]:
+    """Distinct fixes that would move a verdict, most-clearing first.
+
+    One missing root span usually explains every failing trace in the sample. Printing that fix
+    forty times reads as forty problems and buries the two that are actually different.
+
+    ``NEVER_FATAL`` checks are excluded, and that exclusion does two things at once. It stops a
+    cost warning being ranked above the check that decides whether a request can be re-run —
+    SKILL.md tells the agent to hand this list over without reordering it, so the order has to
+    be the truth. And because an ``entry_seatable`` trace can only ever carry those warnings, it
+    also keeps every count here inside the failing-trace total the header prints; a plan that
+    said "clears 5 traces" under a header reading "2 below" was the visible shape of the bug.
+    """
+    return _group_by_fix(traces, set(C.NEVER_FATAL), exclude=True)
+
+
+def applicability_summary(traces: list[TraceGrade]) -> list[dict[str, Any]]:
+    """The never-fatal findings, over every trace including the ones that passed.
+
+    These have to be counted across the whole sample, not the failing part of it: a trace that
+    is well-instrumented and three megabytes heavy is ``entry_seatable``, so it appears nowhere
+    else in the report, and that is precisely the case the weight check exists for.
+    """
+    return _group_by_fix(traces, set(C.NEVER_FATAL), exclude=False)
