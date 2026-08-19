@@ -50,7 +50,7 @@ attribute names are the same strings either way.
 
 **trace-analyze** — *"are my traces good enough for MEGA Loop?"* · `/mega-loop:trace-analyze`
 Read only. Grades your traces — or your source, before any traces exist — against the readiness
-contract MEGA Loop runs internally, plus two checks of its own that can never fail a trace, and
+contract MEGA Loop runs internally — fourteen checks, three of them reported but never fatal — and
 answers four questions per trace:
 
 1. **Can the request be re-run at all?** — the verdict (`entry_missing` → `detection_gap` →
