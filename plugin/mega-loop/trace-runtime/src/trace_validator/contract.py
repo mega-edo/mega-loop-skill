@@ -250,10 +250,14 @@ FINDING_CLASS_GLOSS = {
     ARCHITECTURAL: "needs your decision",
 }
 
-#: The checks with no ``fail`` branch: they warn, and ``rollup`` moves a verdict only on a
-#: ``fail``. They belong on their own line rather than in the fix plan — a trace can be
-#: ``entry_seatable`` and still trip one, and a plan that mixes them ranks advice above the
-#: check that decides whether a request can be re-run at all.
+#: The checks with no ``fail`` branch: they only ever warn. Documentation vocabulary — the
+#: report's "four of fifteen are never fatal" wording, and the drift test that pins it.
+#:
+#: It is deliberately *not* what splits the fix plan from the advisory block. That split asks
+#: whether a finding moved its trace's verdict, which ``Check.blocking`` reads off the verdict
+#: itself; a set of ids cannot answer it, because a check with both branches (``M1_kind_present``)
+#: is blocking on one trace and advisory on another. Adding an id here to keep it out of a plan
+#: would change nothing and hide a real ``fail``.
 NEVER_FATAL = frozenset(
     {
         "S2_signal_density",
@@ -262,6 +266,14 @@ NEVER_FATAL = frozenset(
         "M7_token_usage",
     }
 )
+
+#: Checks whose ``warn`` ``rollup`` acts on, so a warn from them blocks like a ``fail``.
+#:
+#: A transcription of one ``rollup`` line — ``r3.verdict in ("warn", "fail")`` — and it has to
+#: stay one. ``R3_error_status`` grades ``warn``/``not_observed`` and never ``fail``, so without
+#: this its real failures would be filed as advice. Change ``rollup``, change this, and the
+#: drift test that compares them will tell you if you changed only one.
+WARN_IS_FATAL = frozenset({"R3_error_status"})
 
 #: Sites named per finding before the tail is folded into a count. One number, because a reader
 #: widening the evidence should not have to find four of them.

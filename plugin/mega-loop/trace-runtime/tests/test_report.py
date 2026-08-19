@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
 from tests.conftest import span
 
-from trace_validator.checks import fix_summary, grade_sample
+from trace_validator.checks import applicability_summary, fix_summary, grade_sample
 from trace_validator.report import render
 
 
@@ -173,23 +174,115 @@ def test_a_passing_trace_that_is_far_too_heavy_is_still_reported() -> None:
     assert "none of these change a verdict" in out.lower()
 
 
-def test_the_plan_never_claims_more_traces_than_the_header_admits_exist() -> None:
-    """`clears 5 traces` under a header reading `2 below` was the visible shape of the bug:
-    the plan counted every trace, including the passing ones a never-fatal check warns on."""
+def kindless_clean_trace(trace_id: str) -> list:
+    """`entry_seatable`, carrying one span with no kind at all — an M1 *warn*.
+
+    `rollup` acts only on M1's `fail` branch, so this trace passes while a check *outside*
+    `NEVER_FATAL` is still failing on it. That is what an id-keyed split cannot express.
+    """
+    return heavy_clean_trace(trace_id, size=10) + [
+        span(
+            span_id=f"{trace_id}-x",
+            trace_id=trace_id,
+            parent_id=f"{trace_id}-root",
+            span_kind="SPAN",
+            name="kindless",
+        )
+    ]
+
+
+def kindless_broken_trace(trace_id: str) -> list:
+    """Below the line for a reason that has nothing to do with its M1 warn.
+
+    The subtler half: here `t.ok` is False, so "did this trace fail?" admits the warn, and the
+    plan offers `clears N traces` for a fix that clears none of them.
+    """
+    return failing_trace(trace_id) + [
+        span(
+            span_id=f"{trace_id}-x",
+            trace_id=trace_id,
+            parent_id=f"{trace_id}-root",
+            span_kind="SPAN",
+            name="kindless",
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    ("advisory_trace", "advisory_id", "below"),
+    [
+        (heavy_clean_trace, "S4_payload_weight", 2),
+        (kindless_clean_trace, "M1_kind_present", 2),
+        (kindless_broken_trace, "M1_kind_present", 7),
+    ],
+    ids=["never-fatal-check", "warn-on-a-passing-trace", "warn-on-a-failing-trace"],
+)
+def test_a_finding_that_moved_no_verdict_never_enters_the_fix_plan(
+    advisory_trace, advisory_id: str, below: int
+) -> None:
+    """Every `clears N traces` line has to be true, and N has to be reachable.
+
+    `clears 5 traces` under a header reading `2 below` was the visible shape of the bug. The
+    fix for it — excluding a fixed set of check ids — reaches the first two cases and not the
+    third: `M1_kind_present` has a `fail` branch, so it cannot go in that set, and its `warn`
+    rode into the plan on any trace that failed for some *other* reason, promising to clear
+    traces that setting a span kind does not clear.
+    """
     sample = grade_sample(
-        [failing_trace("f1"), failing_trace("f2")] + [heavy_clean_trace(f"h{i}") for i in range(5)]
+        [advisory_trace(f"a{i}") for i in range(5)] + [failing_trace("f1"), failing_trace("f2")]
     )
     out = render(sample, checked=7)
 
-    below = len([t for t in sample.traces if not t.ok])
-    assert below == 2
+    assert len([t for t in sample.traces if not t.ok]) == below
     for entry in fix_summary(list(sample.traces)):
+        assert advisory_id not in entry["checks"], entry
+        # The claim this test is named for: no plan line may outrun the header's failing total.
         assert entry["traces"] <= below, entry
 
-    # And the advisory finding is not ranked above the check that blocks the replay.
+    # Not silently dropped: a passing trace has no per-trace block of its own to appear in.
     plan = out[out.index("most-clearing first") :]
-    assert plan.index("R1_entry_seat") < plan.index("Worth knowing")
-    assert "S4_payload_weight" not in plan[: plan.index("Worth knowing")]
+    worth_knowing = plan.index("Worth knowing")
+    assert advisory_id in plan[worth_knowing:]
+    # And the advice is not ranked above the check that blocks the replay.
+    assert plan.index("R1_entry_seat") < worth_knowing
+
+
+def test_one_instruction_is_printed_in_one_block_only() -> None:
+    """The two blocks are grouped by fix *text*, so they have to be disjoint on that.
+
+    `M1_kind_present` emits the identical fix from both branches: `fail` on a present-but-unknown
+    kind, `warn` on an absent one. Partitioning the findings rather than the fixes put that one
+    line in the plan as `clears 2 traces` and again under "none of these change a verdict" with a
+    smaller count — the same instruction, ranked first and dismissed, four lines apart.
+    """
+    unknown = [
+        span(
+            span_id=f"{t}-root",
+            trace_id=t,
+            span_kind="WIDGET",
+            name="w",
+            attributes={"openinference.span.kind": "WIDGET", "input.value": "hi"},
+        )
+        for t in ("u1", "u2")
+    ]
+    sample = grade_sample([[s] for s in unknown] + [kindless_clean_trace("c1")])
+    traces = list(sample.traces)
+
+    # The invariant, stated on the grouping unit itself: no fix text reaches both blocks.
+    assert not {e["fix"] for e in fix_summary(traces)} & {
+        e["fix"] for e in applicability_summary(traces)
+    }
+
+    # It stays in the plan — a fix that clears a trace is never demoted to advice — and the
+    # kindless span is still named, so the count it lost does not cost the reader a site.
+    entry = next(e for e in fix_summary(traces) if "M1_kind_present" in e["checks"])
+    assert entry["traces"] == 2
+    assert "kindless" in entry["evidence"]
+
+    # And the summary half of the report prints the instruction once. (The per-trace detail
+    # blocks above it legitimately repeat it, once per failing trace.)
+    out = render(sample, checked=3)
+    assert out[out.index("most-clearing first") :].count("Set `openinference.span.kind`") == 1
 
 
 def test_a_trace_heavy_in_no_single_attribute_still_names_where_the_bytes_are() -> None:

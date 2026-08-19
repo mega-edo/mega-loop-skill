@@ -62,9 +62,9 @@ answers four questions per trace:
    token counts), or carry megabytes of its own payload on every run.
 
 Every finding comes with the exact fix, marked *mechanical* (trace-fix can apply it) or *needs your
-decision*, and the summary orders them by how many traces each clears. The four never-fatal checks
-sit in their own `Worth knowing` block rather than the fix plan, so advice is never ranked above a
-blocker. It closes with a one-line `Score:` to paste into a status update and to diff against after
+decision*, and the summary orders them by how many traces each clears. A fix that clears none of
+them — the never-fatal checks always, and any other check that warned without changing a verdict —
+sits in a `Worth knowing` block instead, so advice is never ranked above a blocker. It closes with a one-line `Score:` to paste into a status update and to diff against after
 the fix. It never edits your code.
 
 **trace-fix** — *"make my traces pass"* · `/mega-loop:trace-fix`

@@ -75,12 +75,13 @@ def _handoff_lines(fixes: list[dict[str, Any]]) -> list[str]:
 
 
 def _applicability_lines(sample: SampleGrade) -> list[str]:
-    """The never-fatal findings, on their own line, counted over the whole sample.
+    """The findings that moved no verdict, on their own line, counted over the whole sample.
 
-    They are kept out of the fix plan on purpose — see ``fix_summary`` — and without a line of
-    their own a warning on an otherwise-clean trace reaches nobody: the trace is
-    ``entry_seatable``, so no per-trace block is printed for it. The check that measures payload
-    weight is the case that made this visible, and it is the case it exists for.
+    Not a fixed set of checks — see ``Check.blocking`` for the cut. Any check can land here with
+    a warn the rollup ignored, so the line is worth printing whatever tripped it: without one, a
+    warning on an otherwise-clean trace reaches nobody, because the trace is ``entry_seatable``
+    and no per-trace block is printed for it. The check that measures payload weight is the case
+    that made this visible, and it is the case it exists for.
     """
     entries = applicability_summary(list(sample.traces))
     if not entries:

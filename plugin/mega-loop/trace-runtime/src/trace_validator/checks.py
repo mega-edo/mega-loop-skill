@@ -45,6 +45,22 @@ class Check(BaseModel):
     def failing(self) -> bool:
         return self.verdict in ("fail", "warn")
 
+    @property
+    def blocking(self) -> bool:
+        """Did ``rollup`` act on this verdict — i.e. is this why the trace is below the line?
+
+        The fix plan and the advisory block are a partition of the failing findings, and this
+        is the cut. It reads the verdict rather than the id on purpose: a check with both
+        branches is blocking on one trace and advisory on another, and ``M1_kind_present`` is
+        exactly that. Keyed by id, its ``warn`` (a span with no kind) rode into the plan
+        claiming to clear traces that setting a kind would not clear.
+
+        The two terms are the two ways ``rollup`` leaves ``entry_seatable``: any ``fail`` at
+        all, and ``R3_error_status``'s ``warn``, which is that check's only failing branch.
+        Nothing else it does is reachable without one of those, so this is the whole rule.
+        """
+        return self.verdict == "fail" or (self.verdict == "warn" and self.id in C.WARN_IS_FATAL)
+
 
 class TraceGrade(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -709,26 +725,32 @@ def group_by_trace(spans: list[Span]) -> list[list[Span]]:
     return list(by_trace.values())
 
 
-def _group_by_fix(
-    traces: list[TraceGrade], ids: set[str] | None, exclude: bool
-) -> list[dict[str, Any]]:
+def _group_by_fix(traces: list[TraceGrade]) -> list[dict[str, Any]]:
+    """Every distinct fix in the sample, counted twice: traces it clears, traces it only warns on.
+
+    One walk, and the split comes after it, because the unit the report prints is the fix *text*
+    and not the check. Partitioning the findings first looks equivalent and is not: a check with
+    both branches emits one fix string from both, so ``M1_kind_present`` put the identical line
+    in the plan ("clears 2 traces") and in the block headed "none of these change a verdict".
+    Grouping first means a fix belongs to whichever block its ``blocking`` count sends it to,
+    and can only reach one.
+    """
     by_fix: dict[str, dict[str, Any]] = {}
     for grade_ in traces:
         for check in grade_.failures():
-            if ids is not None and (check.id in ids) is exclude:
-                continue
             entry = by_fix.setdefault(
                 check.fix,
                 {
                     "fix": check.fix,
                     "checks": set(),
-                    "traces": 0,
+                    "traces": 0,  # traces this fix would lift back over the line
+                    "advisory": 0,  # traces where it warned and changed no verdict
                     "finding_class": C.MECHANICAL,
                     "evidence": [],
                 },
             )
             entry["checks"].add(check.id)
-            entry["traces"] += 1
+            entry["traces" if check.blocking else "advisory"] += 1
             # Evidence from across the group, deduped and capped. A rolled-up finding still has
             # to say where to look, and one trace's sites are rarely the whole story.
             for site in check.evidence:
@@ -738,8 +760,15 @@ def _group_by_fix(
             # entry is — an automated pass that applies half of a fix is worse than none.
             if check.finding_class == C.ARCHITECTURAL:
                 entry["finding_class"] = C.ARCHITECTURAL
-    ranked = sorted(by_fix.values(), key=lambda e: -e["traces"])
-    return [{**e, "checks": sorted(e["checks"])} for e in ranked]
+    return sorted(by_fix.values(), key=lambda e: -e["traces"])
+
+
+def _entry(e: dict[str, Any], traces: int) -> dict[str, Any]:
+    """One summary row, with the trace count its block is about and no bookkeeping left in."""
+    return {k: v for k, v in e.items() if k != "advisory"} | {
+        "checks": sorted(e["checks"]),
+        "traces": traces,
+    }
 
 
 def fix_summary(traces: list[TraceGrade]) -> list[dict[str, Any]]:
@@ -748,21 +777,30 @@ def fix_summary(traces: list[TraceGrade]) -> list[dict[str, Any]]:
     One missing root span usually explains every failing trace in the sample. Printing that fix
     forty times reads as forty problems and buries the two that are actually different.
 
-    ``NEVER_FATAL`` checks are excluded, and that exclusion does two things at once. It stops a
+    Only ``Check.blocking`` findings are counted, and that does two things at once. It stops a
     cost warning being ranked above the check that decides whether a request can be re-run —
     SKILL.md tells the agent to hand this list over without reordering it, so the order has to
-    be the truth. And because an ``entry_seatable`` trace can only ever carry those warnings, it
-    also keeps every count here inside the failing-trace total the header prints; a plan that
-    said "clears 5 traces" under a header reading "2 below" was the visible shape of the bug.
+    be the truth. And it makes every ``clears N traces`` line true of the header's failing
+    total: a plan that said "clears 5 traces" under a header reading "2 below" was the visible
+    shape of the bug, and a warn that cleared nothing at all was the subtler half of it.
+
+    ``clears N`` counts only the traces the fix lifts back over the line. Where it also warned
+    without changing a verdict, those traces are not in ``N`` but their sites are in the
+    evidence — the reader is being told where to act, and every one of them is worth acting on.
     """
-    return _group_by_fix(traces, set(C.NEVER_FATAL), exclude=True)
+    return [_entry(e, e["traces"]) for e in _group_by_fix(traces) if e["traces"]]
 
 
 def applicability_summary(traces: list[TraceGrade]) -> list[dict[str, Any]]:
-    """The never-fatal findings, over every trace including the ones that passed.
+    """The fixes that clear nothing — everything the plan left out, and only that.
 
     These have to be counted across the whole sample, not the failing part of it: a trace that
     is well-instrumented and three megabytes heavy is ``entry_seatable``, so it appears nowhere
-    else in the report, and that is precisely the case the weight check exists for.
+    else in the report, and that is precisely the case the weight check exists for. The same
+    holds for a kindless span on a trace that is broken for some *other* reason — the fix plan
+    is the wrong place for a finding that clears none of it.
+
+    A fix that clears even one trace is the plan's, not this block's, however many other traces
+    it merely warns on. Printing it in both is how one instruction became two problems.
     """
-    return _group_by_fix(traces, set(C.NEVER_FATAL), exclude=False)
+    return [_entry(e, e["advisory"]) for e in _group_by_fix(traces) if not e["traces"]]

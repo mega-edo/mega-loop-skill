@@ -130,11 +130,13 @@ Each entry also says **who has to do it**, and that is the half to read out loud
 Read the split back to them before offering the handoff. A plan that is all decisions is not a
 trace-fix job, and saying so is what keeps the offer worth taking up.
 
-The four never-fatal checks are **not in that plan**. They get their own `Worth knowing` block,
-counted over every trace including the ones that passed — a trace can be `entry_seatable` and
-three megabytes heavy, and it appears nowhere else in the report. Keep them out of the fix
-ordering when you relay it: ranking a cost warning above the check that decides whether a request
-can be re-run is how a correct list becomes a misleading one.
+Findings that moved no verdict are **not in that plan**. They get their own `Worth knowing`
+block, counted over every trace including the ones that passed — a trace can be `entry_seatable`
+and three megabytes heavy, and it appears nowhere else in the report. The four never-fatal checks
+always land there, but they are not the only ones that can: any check can warn without changing a
+verdict, so read the block rather than expecting a fixed list. Keep all of it out of the fix
+ordering when you relay it: ranking a warning that clears nothing above the check that decides
+whether a request can be re-run is how a correct list becomes a misleading one.
 
 The report closes with a **`Score:` line** — `n/total entry_seatable (pct%) · verdict`. It is one
 line on purpose: it pastes into a status update, and re-running after the fix gives a second one

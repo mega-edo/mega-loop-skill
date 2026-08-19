@@ -11,7 +11,13 @@ from __future__ import annotations
 from tests.conftest import span
 
 from trace_validator import contract as C
-from trace_validator.checks import entry_seatable, error_in_ok_content, grade
+from trace_validator.checks import (
+    _check,
+    entry_seatable,
+    error_in_ok_content,
+    grade,
+    rollup,
+)
 
 
 def test_step_kinds_stay_at_three() -> None:
@@ -127,6 +133,55 @@ def test_prompt_is_a_real_kind_not_an_absent_one() -> None:
 
     prompt = grade([span(span_kind="PROMPT", attributes={"input.value": "hi"})])
     assert next(c for c in prompt.checks if c.id == "M1_kind_present").verdict == "pass"
+
+
+def graded_ids() -> list[str]:
+    """The check ids `grade` emits, in order — the population the two tests below quantify over."""
+    return [c.id for c in grade([span(attributes={"input.value": "hi"})]).checks]
+
+
+def test_blocking_agrees_with_rollup_on_every_check_and_verdict() -> None:
+    """``Check.blocking`` claims to be a transcription of ``rollup``. This is the comparison.
+
+    The split between the fix plan and the advisory block rests on that claim: a finding is in
+    the plan iff it moved the trace's verdict. If ``rollup`` grows a branch and ``WARN_IS_FATAL``
+    does not, a real failure is quietly filed as advice — the failure mode is under-reporting a
+    blocker, which is worse than the overcount this replaced, and no report-level test would see
+    it. So ask ``rollup`` directly, for every check id at every verdict it can hold.
+    """
+    ids = graded_ids()
+    assert set(ids) >= C.WARN_IS_FATAL
+
+    for cid in ids:
+        for verdict in ("pass", "warn", "fail", "not_observed"):
+            checks = tuple(
+                _check(i, "soft", verdict if i == cid else "pass", "", "", 1, 0) for i in ids
+            )
+            by_id = {c.id: c for c in checks}
+            moved = (
+                rollup(
+                    by_id["R1_entry_seat"],
+                    by_id["R3_error_status"],
+                    by_id["M1_kind_present"],
+                    checks,
+                )
+                != "entry_seatable"
+            )
+            assert by_id[cid].blocking is moved, (cid, verdict)
+
+
+def test_never_fatal_is_the_four_checks_the_docs_promise() -> None:
+    """Vocabulary only — it no longer decides anything, so nothing else would catch it drifting.
+
+    README and docs/commands.md both say "four of fifteen are reported but never fatal", and
+    ``S4``'s own comment says a heavy trace is still a usable one. A check listed here that grew
+    a ``fail`` branch would make those sentences false while the code stayed correct.
+    """
+    assert len(C.NEVER_FATAL) == 4
+    assert set(graded_ids()) >= C.NEVER_FATAL
+
+    # A never-fatal check that acquired a fatal warn would be the contradiction in terms.
+    assert not (C.NEVER_FATAL & C.WARN_IS_FATAL)
 
 
 def test_the_healthy_verdict_keeps_mega_loops_word() -> None:
