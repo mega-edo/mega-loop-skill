@@ -33,11 +33,14 @@ Detect the host from `git remote get-url origin`, then read the **unresolved** r
   `gh api repos/<owner>/<repo>/pulls/<n>/comments`
 - **GitLab** (`glab`): `glab mr view <n>`  ·  inline:
   `glab api projects/<id>/merge_requests/<n>/notes` (or `discussions`)
-- **Bitbucket** (no `gh`/`glab`): `curl -u <user>:<app_password>
-  https://api.bitbucket.org/2.0/repositories/<ws>/<repo>/pullrequests/<n>/comments`
+- **Bitbucket** (`bkt`): `bkt pr comments <n> --state unresolved --details` — the filter
+  matters: `--state` defaults to `all`, so without it you re-apply feedback the maintainer
+  already resolved. (Data Center has no `--state`; there, read the `resolved` field.)
 
-If you can't read comments programmatically (no CLI / no Bitbucket app password), **ask the user to
-paste the review feedback**.
+If you can't read comments programmatically, **ask the user to paste the review feedback** — never
+ask them to paste a token or app password so you can fetch them yourself. `bkt auth login
+https://bitbucket.org --kind cloud --web` keeps the credential in the OS keychain, where a chat
+transcript cannot reach it.
 
 ## 3. Apply the SMALLEST change
 

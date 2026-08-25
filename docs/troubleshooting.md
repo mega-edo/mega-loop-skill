@@ -102,11 +102,15 @@ engine, so a session can never approve its own work.
 ### The local fix did not open a pull request
 
 **Cause.** On the path where your session does the fixing, the PR is opened from your machine, so it
-needs `git` plus the CLI for your host: `gh` (GitHub), `glab` (GitLab), or a Bitbucket app password.
+needs `git` plus the CLI for your host: `gh` (GitHub), `glab` (GitLab), or `bkt` (Bitbucket).
 
-**Fix.** Install and sign in to the missing CLI, then retry. When it cannot open the PR the plugin
-stops honestly and leaves you a branch and a patch file, so no work is lost — you can open the PR
-yourself.
+**Fix.** Install and sign in to the missing CLI, then retry. For Bitbucket that is
+`brew install avivsinai/tap/bitbucket-cli` (or `winget` / `scoop` / `go install`), then
+`bkt auth login https://bitbucket.org --kind cloud --web`, which stores the credential in your OS
+keychain. App passwords are not an option any more — Bitbucket retired them in June 2026.
+
+When it cannot open the PR the plugin stops honestly and leaves you a branch and a patch file, so
+no work is lost — you can open the PR yourself.
 
 ### Asking to fix one bug returns the whole group
 

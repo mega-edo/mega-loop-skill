@@ -100,7 +100,7 @@ When every trace reaches `entry_seatable`, go to Part 2 and let MEGA Loop find t
 
 ## Part 2 — Find and fix the bugs
 
-*Needs a MEGA Loop account and a token, plus `git` — and, to open PRs from your machine, the `gh` CLI (GitHub), `glab` (GitLab), or a Bitbucket app password. Missing one is not fatal: you get a ready branch and a patch file, plus instructions, instead of silence.*
+*Needs a MEGA Loop account and a token, plus `git` — and, to open PRs from your machine, the `gh` CLI (GitHub), `glab` (GitLab), or `bkt` (Bitbucket). Missing one is not fatal: you get a ready branch and a patch file, plus instructions, instead of silence.*
 
 **1. Create the project and connect a trace source, on the web.** The dashboard is your `base_url` — [loop.megacode.ai](https://loop.megacode.ai) for production, [loop-beta.megacode.ai](https://loop-beta.megacode.ai) for beta. This step needs provider secret keys and a live connection test, which belong in a browser; do it once, then live here.
 

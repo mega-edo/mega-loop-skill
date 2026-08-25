@@ -154,10 +154,9 @@ Before it may say **verified**, it has to pass five checks:
 Everything is run for real. Faking an external call to force a green result is not allowed, and if
 a check genuinely cannot be run, it is named and skipped rather than quietly claimed.
 
-Then it opens a **draft** PR — `gh` for GitHub, `glab` for GitLab, and on Bitbucket the REST API
-when an app password is configured. Without one, Bitbucket gets you the pushed branch and the
-"Create pull request" URL from the push output, and you open it yourself. Either way it reports the
-evidence back to MEGA Loop.
+Then it opens a **draft** PR — `gh` for GitHub, `glab` for GitLab, `bkt` for Bitbucket. Without
+the CLI for your host you get the pushed branch and the "Create pull request" URL from the push
+output, and you open it yourself. Either way it reports the evidence back to MEGA Loop.
 
 **No PR possible?** The work still counts. You get the branch, a patch file, and instructions,
 and the dashboard records it honestly as "Verified — PR blocked".
