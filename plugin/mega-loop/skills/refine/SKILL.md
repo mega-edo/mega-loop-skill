@@ -33,7 +33,9 @@ Detect the host from `git remote get-url origin`, then read the **unresolved** r
   `gh api repos/<owner>/<repo>/pulls/<n>/comments`
 - **GitLab** (`glab`): `glab mr view <n>`  ·  inline:
   `glab api projects/<id>/merge_requests/<n>/notes` (or `discussions`)
-- **Bitbucket** (`bkt`): `bkt pr comments <n> --details`
+- **Bitbucket** (`bkt`): `bkt pr comments <n> --state unresolved --details` — the filter
+  matters: `--state` defaults to `all`, so without it you re-apply feedback the maintainer
+  already resolved. (Data Center has no `--state`; there, read the `resolved` field.)
 
 If you can't read comments programmatically, **ask the user to paste the review feedback** — never
 ask them to paste a token or app password so you can fetch them yourself. `bkt auth login

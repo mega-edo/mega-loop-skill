@@ -153,40 +153,64 @@ Pull the package and do the whole loop yourself. The result carries a `handoff_i
        suite; put any layer you couldn't run (and why) in `notes` — honesty over a green wall.
    - **Detect the git host** from `git remote get-url origin` (github.com / gitlab.com|self-hosted /
      bitbucket.org), then open a **DRAFT** PR/MR with the `pr_title`/`pr_body` **VERBATIM** (no
-     footers, no attribution):
-     - **GitHub** (`gh` available): `gh pr create --draft --title "<pr_title>" --body-file <file>
-       --label auto-fix --label needs-review`
-     - **GitLab** (`glab` available): `glab mr create --draft --title "<pr_title>"
+     footers, no attribution).
+
+     **Write BOTH to files first, and read them back with `"$(cat …)"`.** Never paste `pr_title`
+     into the command: it is written by an LLM from production traces, so a title holding a `"`
+     breaks the command and one holding `$(` executes. A quoted substitution's output is not
+     re-scanned for expansion, which is exactly why the body already went in that way.
+     - **GitHub** (`gh` available): `gh pr create --draft --title "$(cat <title-file>)"
+       --body-file <file> --label auto-fix --label needs-review`
+     - **GitLab** (`glab` available): `glab mr create --draft --title "$(cat <title-file>)"
        --description-file <file> --label auto-fix,needs-review --yes`
      - **Bitbucket** (`bkt` — github.com/avivsinai/bitbucket-cli): `bkt pr create --draft
-       --title "<pr_title>" --description "$(cat <file>)"`. No `--body-file` and no `--label`:
-       the quoted command substitution keeps the body's newlines, and Bitbucket has no labels at
-       all — the `[auto-fix]` marker already rides in `pr_title`, and a draft IS `needs-review`.
-       Missing? `brew install avivsinai/tap/bitbucket-cli` (also winget / scoop / `go install`),
-       then `bkt auth login https://bitbucket.org --kind cloud --web` — it stores the credential
-       in the OS keychain. **Never ask the user to paste a token or app password into the chat**:
-       the transcript is a file on disk. (App passwords also stop working in June 2026.)
+       --title "$(cat <title-file>)" --description "$(cat <file>)"`. No `--body-file` and no
+       `--label`: Bitbucket has no labels at all — the `[auto-fix]` marker already rides in
+       `pr_title`, and a draft IS `needs-review`.
+
+       Missing? **Offer** to install it — do not install on your own — and name the source that
+       fits their machine rather than the first one on the list:
+       `brew install avivsinai/tap/bitbucket-cli` (macOS) ·
+       `winget install AvivSinai.Bitbucket-CLI` (Windows) ·
+       `scoop bucket add avivsinai https://github.com/avivsinai/scoop-bucket && scoop install
+       bitbucket-cli` — the bucket first, or scoop resolves the name from whichever buckets the
+       user already has ·
+       `go install github.com/avivsinai/bitbucket-cli/cmd/bkt@latest`, or a release binary from
+       `github.com/avivsinai/bitbucket-cli/releases`. Then `bkt auth login
+       https://bitbucket.org --kind cloud --web` — it stores the credential in the OS keychain.
+       **Never ask the user to paste a token or app password into the chat**: the transcript is
+       a file on disk. (Bitbucket app passwords no longer work at all — they were retired in June 2026.)
    - Then get the **PR/MR url** + the **commit list** (OLDEST→NEWEST) and call
      `report_status(..., pr_url=..., commits=[...])` → `ok=true`. Commit list per host:
      `gh pr view <n> --json commits` · `glab mr view <n>` · or host-agnostic
      `git log <base>..HEAD --reverse --pretty='%H %s'`.
 4. **Gate + clear the marker** — call **`gate(project=<active>, bug_id=<bug>)`** → the engine's
-   verdict on what you reported. On **PASS**, delete `.mega/companion/active-fix.json` (you may now
-   stop). On **FAIL/PENDING**, do NOT declare done — address it and re-verify. The gate-on-stop
-   reflex enforces this: it blocks "done" while the marker is present.
+   verdict on what you reported. On **FAIL/PENDING**, do NOT declare done — address it and
+   re-verify.
+
+   **Done = PASS *and* the PR debt settled**, which means `report_status` returned `ok=true`
+   carrying a `pr_url`, or you sent a `pr_blocked_reason`. Only then delete
+   `.mega/companion/active-fix.json`; you may stop once it is gone. A PASS on its own does not
+   settle the debt — the engine passes a `pr_required` handoff, because the FIX is what it
+   judges, and deleting the marker there disarms the gate-on-stop reflex that would otherwise
+   have held you. That reflex only blocks "done" while the marker exists.
 5. **The PR ladder** (when no PR/MR can be opened — the fix still counts):
    - git repo but **no remote, or no host CLI** (`gh` / `glab` / `bkt`): push the branch if a
-     remote exists (`git push -u origin <branch>` — GitLab/Bitbucket print a create-MR/PR URL you
-     can report), or offer to add a remote / install the CLI for THAT host. Offering the wrong one
+     remote exists (`git push -u origin <branch>` — GitLab/Bitbucket print a create-MR/PR link;
+     hand it to the user, but do NOT report it: it is a form, not a PR, and the server refuses
+     it), or offer to add a remote / install the CLI for THAT host. Offering the wrong one
      is worse than offering none: `gh` cannot open a Bitbucket PR however it is authenticated. If the
      user declines → `report_status(..., pr_blocked_reason="...")` → honest terminal (dashboard
      shows "Verified — PR blocked"). Leave the branch + a patch file (`git format-patch`) and tell
      the user how to review/merge.
    - **A create-PR link is not an ending.** If you hand one over (Bitbucket/GitLab print one on
-     push), stay in the session until the user opens it and gives you the URL, then report it. If
-     they will not do it now, call `report_status(..., pr_blocked_reason="...")` instead. Stopping
-     between the two leaves the handoff stuck at `pr_required` forever — the dashboard renders that
-     as work still in flight, and nothing can supply the URL once your session is gone.
+     push), stay in the session until the user opens it, then **call**
+     `report_status(..., pr_url=<the opened PR>, commits=[...])` and check `ok=true` — "report"
+     here is the tool call, never telling the user. The url must be the opened PR
+     (`…/pull-requests/<number>`); the create-form link is refused by the server. If they will not
+     open it now, call `report_status(..., pr_blocked_reason="...")` instead. Stopping between the
+     two leaves the handoff stuck at `pr_required` forever — the dashboard renders that as work
+     still in flight, and nothing can supply the url once your session is gone.
    - no git at all: offer `git init && git add -A && git commit` FIRST (2 seconds, full safety net).
      If declined: back up the files you will touch to `.mega/backup/<handoff_id>/`, fix in place,
      hand-build the unified diff, report it with `pr_blocked_reason="no VCS"` — and tell the user

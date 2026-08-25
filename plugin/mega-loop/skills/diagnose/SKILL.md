@@ -14,9 +14,11 @@ connect); pass its id as `project`.
 
 ## bugs — "what's broken?"
 
-Call **`list_bugs(project=<active>)`**. It returns the project's ledger — the same set
-`status` counts as `total`, so the two never disagree; dismissed and superseded bugs are
-off it. Narrow with `states=["open"]` for just the fix inbox. Each row
+Call **`list_bugs(project=<active>, states=["open"])`** — that is the fix inbox, and what
+`/mega-loop:bugs` promises. The bare call returns the project's **ledger** instead: the same set
+`status` counts as `total`, which is today's open bugs **plus the ones already fixed**, with
+dismissed and superseded off it. Use the bare call only when the user wants numbers that match
+`status`; never pick a bug to fix from it, or `autofix` gets handed a closed one. Each row
 carries id, title, severity, trace count. Present them **by title**, worst severity first — never make the user
 read ids. Match the user's words to a title to get the `bug_id`.
 
