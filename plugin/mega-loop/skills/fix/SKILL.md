@@ -21,8 +21,10 @@ for a project id:
 
 1. **`list_projects`** → the user's projects. Exactly one → use it. Several and they didn't name
    one → look across them (step 2) or ask which.
-2. **`list_bugs(project=<active>)`** → match the user's words to a bug's **title**; take its
-   `bug_id`. If the match is ambiguous, show the candidates and ask — never guess.
+2. **`list_bugs(project=<active>, states=["open"])`** → match the user's words to a bug's
+   **title**; take its `bug_id`. If the match is ambiguous, show the candidates and ask — never
+   guess. `states` is not optional here: the bare call returns the ledger, which carries bugs
+   that are already fixed, and handing one of those to `autofix` is a fix for a closed bug.
 3. **`autofix(project=<active>, bug_id=<that bug>)`** (scope defaults to `bug`; use
    `group_id` / `group_ids` / `scope="all"` for a group or a whole batch).
 
@@ -39,7 +41,8 @@ original call. **Never ask for an email + password**; the terminal authenticates
 `autofix` returns `{project, scope, results: [...]}`. Each result carries `mode`. **Never decide the
 mode yourself** — the server owns the routing (design 37). Handle the non-result replies first:
 
-- **`error: "nothing_to_fix"`** → no bug/group matched; re-run `list_bugs` and re-resolve.
+- **`error: "nothing_to_fix"`** → no bug/group matched; re-run `list_bugs` with
+  `states=["open"]` and re-resolve.
 - **`error: "no_llm_connection"` / `"unsupported_analyst_model"` / `"unresolved_tier_models"`** →
   the repo is bound so the engine fixes it, but the user's LLM connection is missing/unusable. Tell
   them to fix it on the dashboard (Account → LLM connections), then retry.

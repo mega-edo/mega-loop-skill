@@ -5,7 +5,10 @@
 # NEVER scores anything itself (that would be a second judge — design 56 rule 1). It only checks
 # for the in-progress-fix marker the fix skill writes, and — if one is present —
 # blocks the stop and tells the agent to run the `gate` verb. The agent has the MCP + PAT, so it
-# calls the engine; the engine is the only judge. On PASS the agent deletes the marker and may stop.
+# calls the engine; the engine is the only judge. PASS is necessary and not sufficient: the agent
+# deletes the marker once the PR debt is settled too (a reported `pr_url`, or a sent
+# `pr_blocked_reason`) — the engine passes a `pr_required` handoff, because the FIX is what it
+# judges, so deleting on PASS alone would disarm this hook exactly when it is still needed.
 #
 # Silent + safe: no marker → the hook does nothing, so it never affects a session that isn't
 # mid-fix. The stop_hook_active guard means it blocks at most once per stop sequence (no loop).
@@ -33,6 +36,6 @@ fi
 bug="$(jq -r '.bug_id // "the active bug"' "$marker" 2>/dev/null || printf 'the active bug')"
 proj="$(jq -r '.project // ""' "$marker" 2>/dev/null || printf '')"
 
-jq -nc --arg r "mega-loop gate-on-stop — a fix for $bug is still open. Before declaring done, get the engine's verdict: call gate(project=\"$proj\", bug_id=\"$bug\"). If it is PASS, delete $marker and you may stop; if FAIL or PENDING, address it and re-verify. The engine is the only judge — do not self-certify." \
+jq -nc --arg r "mega-loop gate-on-stop — a fix for $bug is still open. Before declaring done, get the engine's verdict: call gate(project=\"$proj\", bug_id=\"$bug\"). On FAIL or PENDING, address it and re-verify. On PASS, you may delete $marker and stop ONLY once the PR debt is settled as well — report_status returned ok=true with a pr_url, or you sent a pr_blocked_reason. PASS alone does not settle it: the engine passes a pr_required handoff, so deleting the marker there disarms this reflex. The engine is the only judge — do not self-certify." \
   '{decision: "block", reason: $r}'
 exit 0
