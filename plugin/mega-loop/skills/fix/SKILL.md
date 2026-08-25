@@ -182,6 +182,11 @@ Pull the package and do the whole loop yourself. The result carries a `handoff_i
      user declines → `report_status(..., pr_blocked_reason="...")` → honest terminal (dashboard
      shows "Verified — PR blocked"). Leave the branch + a patch file (`git format-patch`) and tell
      the user how to review/merge.
+   - **A create-PR link is not an ending.** If you hand one over (Bitbucket/GitLab print one on
+     push), stay in the session until the user opens it and gives you the URL, then report it. If
+     they will not do it now, call `report_status(..., pr_blocked_reason="...")` instead. Stopping
+     between the two leaves the handoff stuck at `pr_required` forever — the dashboard renders that
+     as work still in flight, and nothing can supply the URL once your session is gone.
    - no git at all: offer `git init && git add -A && git commit` FIRST (2 seconds, full safety net).
      If declined: back up the files you will touch to `.mega/backup/<handoff_id>/`, fix in place,
      hand-build the unified diff, report it with `pr_blocked_reason="no VCS"` — and tell the user
