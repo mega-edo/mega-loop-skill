@@ -158,10 +158,14 @@ Pull the package and do the whole loop yourself. The result carries a `handoff_i
        --label auto-fix --label needs-review`
      - **GitLab** (`glab` available): `glab mr create --draft --title "<pr_title>"
        --description-file <file> --label auto-fix,needs-review --yes`
-     - **Bitbucket** (no `gh`/`glab` CLI): `git push -u origin <branch>` — Bitbucket prints a
-       **"Create pull request"** URL in the push output; capture it. If a Bitbucket app-password +
-       REST is configured, create the PR via `POST /2.0/repositories/{ws}/{repo}/pullrequests`
-       (`"draft": true`); otherwise report that create-PR URL so the user opens it.
+     - **Bitbucket** (`bkt` — github.com/avivsinai/bitbucket-cli): `bkt pr create --draft
+       --title "<pr_title>" --description "$(cat <file>)"`. No `--body-file` and no `--label`:
+       the quoted command substitution keeps the body's newlines, and Bitbucket has no labels at
+       all — the `[auto-fix]` marker already rides in `pr_title`, and a draft IS `needs-review`.
+       Missing? `brew install avivsinai/tap/bitbucket-cli` (also winget / scoop / `go install`),
+       then `bkt auth login https://bitbucket.org --kind cloud --web` — it stores the credential
+       in the OS keychain. **Never ask the user to paste a token or app password into the chat**:
+       the transcript is a file on disk. (App passwords also stop working in June 2026.)
    - Then get the **PR/MR url** + the **commit list** (OLDEST→NEWEST) and call
      `report_status(..., pr_url=..., commits=[...])` → `ok=true`. Commit list per host:
      `gh pr view <n> --json commits` · `glab mr view <n>` · or host-agnostic
@@ -171,9 +175,10 @@ Pull the package and do the whole loop yourself. The result carries a `handoff_i
    stop). On **FAIL/PENDING**, do NOT declare done — address it and re-verify. The gate-on-stop
    reflex enforces this: it blocks "done" while the marker is present.
 5. **The PR ladder** (when no PR/MR can be opened — the fix still counts):
-   - git repo but **no remote, or no matching host CLI** (`gh`/`glab`, and Bitbucket app-password
-     unset): push the branch if a remote exists (`git push -u origin <branch>` — GitLab/Bitbucket
-     print a create-MR/PR URL you can report), or offer to add a remote / install the CLI. If the
+   - git repo but **no remote, or no host CLI** (`gh` / `glab` / `bkt`): push the branch if a
+     remote exists (`git push -u origin <branch>` — GitLab/Bitbucket print a create-MR/PR URL you
+     can report), or offer to add a remote / install the CLI for THAT host. Offering the wrong one
+     is worse than offering none: `gh` cannot open a Bitbucket PR however it is authenticated. If the
      user declines → `report_status(..., pr_blocked_reason="...")` → honest terminal (dashboard
      shows "Verified — PR blocked"). Leave the branch + a patch file (`git format-patch`) and tell
      the user how to review/merge.
