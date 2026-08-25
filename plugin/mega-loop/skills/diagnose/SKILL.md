@@ -14,8 +14,10 @@ connect); pass its id as `project`.
 
 ## bugs — "what's broken?"
 
-Call **`list_bugs(project=<active>)`** (optionally `states=["open"]`). It returns the bugs — id,
-title, severity, trace count. Present them **by title**, worst severity first — never make the user
+Call **`list_bugs(project=<active>)`**. It returns the project's ledger — the same set
+`status` counts as `total`, so the two never disagree; dismissed and superseded bugs are
+off it. Narrow with `states=["open"]` for just the fix inbox. Each row
+carries id, title, severity, trace count. Present them **by title**, worst severity first — never make the user
 read ids. Match the user's words to a title to get the `bug_id`.
 
 ## explain — "why is this failing, and where?"
