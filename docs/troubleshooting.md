@@ -104,10 +104,17 @@ engine, so a session can never approve its own work.
 **Cause.** On the path where your session does the fixing, the PR is opened from your machine, so it
 needs `git` plus the CLI for your host: `gh` (GitHub), `glab` (GitLab), or `bkt` (Bitbucket).
 
-**Fix.** Install and sign in to the missing CLI, then retry. For Bitbucket that is
-`brew install avivsinai/tap/bitbucket-cli` (or `winget` / `scoop` / `go install`), then
-`bkt auth login https://bitbucket.org --kind cloud --web`, which stores the credential in your OS
-keychain. App passwords are not an option any more — Bitbucket retired them in June 2026.
+**Fix.** Install and sign in to the missing CLI, then retry — whichever host you are on:
+
+- **GitHub** — `brew install gh` (or `winget install GitHub.cli` / `scoop install gh`), then
+  `gh auth login`.
+- **GitLab** — `brew install glab`, which GitLab supports on macOS and Linux alike; other package
+  managers are listed at `gitlab.com/gitlab-org/cli`. Then `glab auth login`.
+- **Bitbucket** — `brew install avivsinai/tap/bitbucket-cli` (or `winget` / `scoop` /
+  `go install`), then `bkt auth login https://bitbucket.org --kind cloud --web`.
+
+Each `auth login` stores the credential in your OS keychain, so you never paste a token anywhere.
+Bitbucket app passwords are not an option any more — they were retired in June 2026.
 
 When it cannot open the PR the plugin stops honestly and leaves you a branch and a patch file, so
 no work is lost — you can open the PR yourself.
