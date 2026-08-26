@@ -166,8 +166,10 @@ Pull the package and do the whole loop yourself. The result carries a `handoff_i
      **A PR may already be open for this branch — check before you open one.** The rung below
      hands the user the create-PR link a push printed, so them opening it in the browser is a
      designed outcome, and an earlier session may have opened one and stopped before reporting it.
-     `gh pr list --head <branch>` · `glab mr list --source-branch <branch>` · `bkt pr list`, and
-     ask the user when no CLI can answer. If one exists, do NOT open a second: report THAT url.
+     `gh pr list --head <branch>` · `glab mr list --source-branch <branch>`. **`bkt` has no branch
+     filter** — `bkt pr list --state OPEN --json` and match the source branch in the results
+     yourself, or you will find somebody else's open PR. Ask the user when no CLI can answer. If
+     one exists FOR THIS BRANCH, do NOT open a second: report THAT url.
      Finding one is not the user declining — it is the PR, already open. (The engine says the same
      thing back to you in `next_action` and in a resumed handoff's instruction.)
 
