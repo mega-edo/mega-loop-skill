@@ -162,6 +162,15 @@ Pull the package and do the whole loop yourself. The result carries a `handoff_i
      into the command: it is written by an LLM from production traces, so a title holding a `"`
      breaks the command and one holding `$(` executes. A quoted substitution's output is not
      re-scanned for expansion, which is exactly why the body already went in that way.
+
+     **A PR may already be open for this branch — check before you open one.** The rung below
+     hands the user the create-PR link a push printed, so them opening it in the browser is a
+     designed outcome, and an earlier session may have opened one and stopped before reporting it.
+     `gh pr list --head <branch>` · `glab mr list --source-branch <branch>` · `bkt pr list`, and
+     ask the user when no CLI can answer. If one exists, do NOT open a second: report THAT url.
+     Finding one is not the user declining — it is the PR, already open. (The engine says the same
+     thing back to you in `next_action` and in a resumed handoff's instruction.)
+
      - **GitHub** (`gh` available): `gh pr create --draft --title "$(cat <title-file>)"
        --body-file <file> --label auto-fix --label needs-review`
      - **GitLab** (`glab` available): `glab mr create --draft --title "$(cat <title-file>)"
@@ -171,18 +180,26 @@ Pull the package and do the whole loop yourself. The result carries a `handoff_i
        `--label`: Bitbucket has no labels at all — the `[auto-fix]` marker already rides in
        `pr_title`, and a draft IS `needs-review`.
 
-       Missing? **Offer** to install it — do not install on your own — and name the source that
-       fits their machine rather than the first one on the list:
-       `brew install avivsinai/tap/bitbucket-cli` (macOS) ·
+     **The host's CLI is missing? Offer to install it — never install on your own**, and name the
+     source that fits their machine rather than the first one on the list. Every host, not just the
+     unfamiliar one: `gh` is usually already there and the other two usually are not, so writing
+     down only Bitbucket's is what left a GitLab session with the ladder out of reach.
+     - **`gh`** — `brew install gh` · `winget install GitHub.cli` · `scoop install gh`, then
+       `gh auth login`.
+     - **`glab`** — `brew install glab`, which is GitLab's own supported route on macOS and Linux
+       alike; for anything else send them to `gitlab.com/gitlab-org/cli` →
+       `docs/installation_options.md` rather than guessing a package name. Then `glab auth login`.
+     - **`bkt`** — `brew install avivsinai/tap/bitbucket-cli` (macOS) ·
        `winget install AvivSinai.Bitbucket-CLI` (Windows) ·
        `scoop bucket add avivsinai https://github.com/avivsinai/scoop-bucket && scoop install
        bitbucket-cli` — the bucket first, or scoop resolves the name from whichever buckets the
-       user already has ·
-       `go install github.com/avivsinai/bitbucket-cli/cmd/bkt@latest`, or a release binary from
-       `github.com/avivsinai/bitbucket-cli/releases`. Then `bkt auth login
-       https://bitbucket.org --kind cloud --web` — it stores the credential in the OS keychain.
-       **Never ask the user to paste a token or app password into the chat**: the transcript is
-       a file on disk. (Bitbucket app passwords no longer work at all — they were retired in June 2026.)
+       user already has · `go install github.com/avivsinai/bitbucket-cli/cmd/bkt@latest`, or a
+       release binary from `github.com/avivsinai/bitbucket-cli/releases`, then `bkt auth login
+       https://bitbucket.org --kind cloud --web`.
+
+     **Never ask the user to paste a token, password or app password into the chat**: the
+     transcript is a file on disk. Each `auth login` above puts the credential in the OS keychain
+     instead. (Bitbucket app passwords do not work at all any more — retired June 2026.)
    - Then get the **PR/MR url** + the **commit list** (OLDEST→NEWEST) and call
      `report_status(..., pr_url=..., commits=[...])` → `ok=true`. Commit list per host:
      `gh pr view <n> --json commits` · `glab mr view <n>` · or host-agnostic
@@ -197,7 +214,13 @@ Pull the package and do the whole loop yourself. The result carries a `handoff_i
    settle the debt — the engine passes a `pr_required` handoff, because the FIX is what it
    judges, and deleting the marker there disarms the gate-on-stop reflex that would otherwise
    have held you. That reflex only blocks "done" while the marker exists.
-5. **The PR ladder** (when no PR/MR can be opened — the fix still counts):
+5. **The PR ladder** (when no PR/MR can be opened — the fix still counts). **Walk it, do not
+   present it.** Ask one yes/no question at a time — "may I install `bkt`?", "may I push?" — and
+   let the rung follow from the answer. Laying the rungs out as a menu hands the user a choice
+   whose cost is invisible to them: a session did exactly that and offered "I'll push, you open the
+   PR later" as one of four options, which is the single ending that strands the handoff at
+   `pr_required` forever. **Whichever rung you land on, the session ends at a reported `pr_url` or
+   a sent `pr_blocked_reason` — never in between.**
    - git repo but **no remote, or no host CLI** (`gh` / `glab` / `bkt`): push the branch if a
      remote exists (`git push -u origin <branch>` — GitLab/Bitbucket print a create-MR/PR link;
      hand it to the user, but do NOT report it: it is a form, not a PR, and the server refuses
