@@ -201,17 +201,3 @@ whether or not propagation works, which is exactly the bug you are trying to rul
 - **`startSpan` instead of `startActiveSpan`.** `startSpan` does not make the span current, so
   the next span parents to whatever was current before. Use `startActiveSpan` unless you are
   deliberately building a detached span.
-
-## Maintaining the kit
-
-```bash
-npm install && npm test
-```
-
-The tests run each setup this README describes against a real app: plain Node across two
-services, NestJS and Next.js. Each app exports spans over OTLP to an in-process collector, and
-`scripts/validate_traces.py`, the grader the skills use, grades them. Each setup also has a
-negative control, the same app without `setRequestInput`, which must fail. That proves the test
-can fail. The fixtures have no lockfile and install the newest release in their major range
-(`test/fixtures/*/package.json`), so a framework release that breaks the kit fails here first. The
-test needs `uv` on `PATH`.

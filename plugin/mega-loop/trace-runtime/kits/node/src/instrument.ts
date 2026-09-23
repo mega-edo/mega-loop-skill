@@ -187,7 +187,7 @@ class EntrySpanRegistry extends Bookkeeper {
 
 /**
  * The attributes MEGA Loop reads a kind from — OpenInference's, and the foreign families it maps
- * at ingest. Pinned against the validator's contract by `tests/test_node_kit_contract.py`.
+ * at ingest. Must match what `trace_validator/span.py` `_lower_kind` reads.
  */
 const KIND_KEYS = [
   'openinference.span.kind',

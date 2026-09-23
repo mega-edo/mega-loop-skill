@@ -14,8 +14,7 @@ build/
 node_modules/
 kits/node/dist/
 *.tsbuildinfo
-# The kit is a template copied into someone else's repo, and its test fixtures resolve fresh on
-# purpose — a pinned lockfile would hide the breakage a new framework release brings.
+# The kit is a template copied into someone else's repo; its lockfile would pin their versions.
 kits/node/**/package-lock.json
 
 # Credentials — the validator reads platform keys from the environment, never from a file that
