@@ -46,7 +46,9 @@ No `uv`? `pip install pydantic httpx` once, then use `python` in place of `uv ru
    `${CLAUDE_PLUGIN_ROOT}/trace-runtime/kits/node/`. These are templates to copy into the repo, not
    dependencies of this plugin. Install the tracer, call `setup_tracing` first thing in the
    entrypoint, and wrap each user request in a **root span** of kind CHAIN or AGENT carrying
-   `input.value`.
+   `input.value`. On Node behind a framework (NestJS, Next.js, Express), the framework already
+   opened the root — seat the request on it with `setRequestInput`, as the Node README's
+   framework sections show, instead of opening a second span that would be its child.
 
 2. **Work the report top-down.** It is ordered by how many traces each fix clears, and one missing
    root span usually explains a whole batch of `entry_missing` verdicts. The common fixes, in the
