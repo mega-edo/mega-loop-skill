@@ -1,6 +1,6 @@
 # Node kit
 
-Two files to copy into your project:
+Two files to copy into your project. The examples below put them in `src/tracing/`:
 
 - `src/instrument.ts` — the setup: exporter, `traceparent` propagator, the Node
   auto-instrumentations, and `setRequestInput` / `setRequestOutput`.
@@ -38,9 +38,16 @@ npm install @arizeai/openinference-instrumentation-openai
 ```
 
 Pass it in `register.ts`:
-`setupTracing({ instrumentations: [...defaultInstrumentations(), new OpenAIInstrumentation()] })`.
-If no LLM spans appear in an ES-module app, also call
-`openAIInstrumentation.manuallyInstrument(OpenAI)` after importing the SDK.
+
+```ts
+import { OpenAIInstrumentation } from '@arizeai/openinference-instrumentation-openai'
+
+const openAI = new OpenAIInstrumentation()
+setupTracing({ instrumentations: [...defaultInstrumentations(), openAI] })
+```
+
+If no LLM spans appear in an ES-module app, also call `openAI.manuallyInstrument(OpenAI)` after
+importing the SDK.
 
 ## 2. Point it at your platform
 
@@ -65,8 +72,8 @@ Instrumentations patch modules as they load, so a client created earlier is neve
 `register`:
 
 ```bash
-node --import ./dist/register.js dist/server.js     # ES modules
-node --require ./dist/register.js dist/main.js      # CommonJS
+node --import ./dist/tracing/register.js dist/server.js     # ES modules
+node --require ./dist/tracing/register.js dist/main.js      # CommonJS
 ```
 
 or make it the first import of your entrypoint. Preload `register.js`, not `instrument.js`:
