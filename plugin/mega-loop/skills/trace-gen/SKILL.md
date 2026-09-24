@@ -67,6 +67,11 @@ Copy the kit for the stack into the repo:
 Each carries a `README.md`, a setup module, and a worked example. Call setup once, first thing in
 the entry point, before the app imports anything that might emit.
 
+On Node, the web framework decides how the kit is loaded and where the request is put, and the
+Node README has a section for each — follow **NestJS** or **Next.js** there rather than the plain
+recipe. The framework opens the root span before the handler runs, so a span you open in the
+handler is a child: seat the request with `setRequestInput`, which reaches the real root.
+
 Wire the exporter to wherever the user's traces go. The kit READMEs cover the environment
 variables; Langfuse needs OTLP over **HTTP** with basic auth, which is not the same exporter as a
 gRPC collector.

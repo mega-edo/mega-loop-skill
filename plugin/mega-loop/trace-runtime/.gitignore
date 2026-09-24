@@ -14,6 +14,8 @@ build/
 node_modules/
 kits/node/dist/
 *.tsbuildinfo
+# The kit is a template copied into someone else's repo; its lockfile would pin their versions.
+kits/node/**/package-lock.json
 
 # Credentials — the validator reads platform keys from the environment, never from a file that
 # could be committed. Keep it that way: if you use a .env for local runs, it stays out of git.
