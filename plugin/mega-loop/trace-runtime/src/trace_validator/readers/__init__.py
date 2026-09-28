@@ -31,11 +31,19 @@ class Reader(Protocol):
         ...
 
 
-def require_env(name: str, *, hint: str) -> str:
-    value = os.environ.get(name, "").strip()
-    if not value:
-        raise ReaderError(f"{name} is not set. {hint}")
-    return value
+def require_env(name: str, *alternates: str, hint: str) -> str:
+    """The first of ``name``/``alternates`` that is set, or a ReaderError naming all of them.
+
+    Alternates exist because a platform renames its variables and both spellings stay in the wild:
+    the reader has to accept whatever the app that WROTE the traces was configured with, or a
+    project is asked to set the same URL twice under two names.
+    """
+    for candidate in (name, *alternates):
+        value = os.environ.get(candidate, "").strip()
+        if value:
+            return value
+    names = " or ".join((name, *alternates))
+    raise ReaderError(f"{names} is not set. {hint}")
 
 
 def as_text(value: Any) -> str:

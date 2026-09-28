@@ -21,7 +21,7 @@ pip install opentelemetry-instrumentation-fastapi opentelemetry-instrumentation-
 
 ```bash
 # Langfuse
-export LANGFUSE_HOST=https://cloud.langfuse.com
+export LANGFUSE_BASE_URL=https://cloud.langfuse.com   # LANGFUSE_HOST also works (pre-v4 name)
 export LANGFUSE_PUBLIC_KEY=pk-lf-…
 export LANGFUSE_SECRET_KEY=sk-lf-…
 
