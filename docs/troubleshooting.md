@@ -77,6 +77,85 @@ projects and trace sources are created on the web, so a project you never create
 
 ---
 
+## Traces
+
+### The validator says `LANGFUSE_BASE_URL or LANGFUSE_HOST is not set`
+
+**Cause.** Claude only sees the environment it was started with. Variables exported after `claude`
+was launched do not reach it.
+
+**Fix.** Export the three Langfuse variables, then start `claude` again. Either URL name works —
+`LANGFUSE_BASE_URL` is what Langfuse's current SDK documents, `LANGFUSE_HOST` is the same thing
+before v4.
+
+### Nothing arrives in Langfuse while a trace verb is working
+
+**Cause.** Not an error. `trace-gen` and `trace-fix` do their whole loop on a local collector they
+start themselves, so the attempts — the runs where the instrumentation is still wrong — never reach
+your platform.
+
+**Fix.** Nothing. Look at the local collector instead. The skill stops and asks before it reads
+your platform at all.
+
+### Nothing arrives in Langfuse after the verb has finished
+
+**Cause.** `OTEL_EXPORTER_OTLP_ENDPOINT` is still set in your shell, from the local loop or from
+something else. It takes precedence over every platform variable.
+
+**Fix.** `unset OTEL_EXPORTER_OTLP_ENDPOINT`, then run the app again. If it is set in a `.env`,
+remove it there — the kit reads it before it reads anything else.
+
+### The local grade passes but the platform grade does not
+
+**Cause.** The spans are written correctly and something between the app and the platform is not:
+wrong keys, wrong URL, blocked egress, or the platform's own mapping changing a span on ingest.
+
+**Fix.** Report both numbers rather than picking one. A difference between them is the finding, and
+it is the one thing a local collector cannot show you.
+
+### No LLM spans, and no error either
+
+**Cause.** Two shapes, both silent. The OpenInference instrumentation for your SDK is not
+installed. Or it is, but your SDK's major version is outside the range it patches — at 4.2.7 the
+OpenAI one patches `^5`, `^6` and `^7` only, and pointed at anything else it registers, patches
+nothing, and logs nothing.
+
+**Fix.** `npm install @arizeai/openinference-instrumentation-openai` (or `-anthropic`,
+`-langchain`, `-bedrock`); the kit loads whichever is present. If it is already installed, compare
+your SDK's major against the range in that package's `init()`.
+
+### Every span is its own trace
+
+**Cause.** Context was not carried. On Node the kit loaded after the framework, so the modules that
+pass `traceparent` were never patched. Or a queue, thread or process hop carries nothing.
+
+**Fix.** On Node, load the kit first — `import './tracing/register'` as the first line of the entry
+point, before anything else. Across a hop you own, pass `traceparent` yourself.
+
+### A short script sends nothing
+
+**Cause.** The process exited before the batch processor flushed.
+
+**Fix.** Python: `trace.get_tracer_provider().shutdown()` before returning. Node:
+`await shutdownTracing()`.
+
+### A serverless function sends nothing
+
+**Cause.** The platform froze the function as soon as it responded, before the batch was sent.
+
+**Fix.** In Next.js, `after(() => flushTracing({ waitForRequest: true }))`. Elsewhere, flush before
+returning.
+
+### It says `No gradable traces found`
+
+**Cause.** Nothing was sent inside the window being read — `--since-hours`, 24 by default.
+
+**Fix.** Run the app so it serves a request, then grade again. Or widen the window. The count can
+also be lower than what Langfuse shows you: the validator drops the traces MEGA Loop writes when it
+verifies a fix, the same way ingest does. `--keep-verify-traffic` includes them.
+
+---
+
 ## Fixing
 
 ### There are no bugs listed

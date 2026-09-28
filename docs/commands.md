@@ -40,6 +40,10 @@ Edits your code. Reads the repository to find where a request begins and what ha
 installs the kit for the stack, writes the spans — then **runs your app and grades the traces that
 came out**, because a codebase with no traces cannot be graded, only guessed at.
 
+That loop runs on a local collector the skill starts and removes, so the attempts — the runs where
+the instrumentation is still wrong — never reach your platform. When the traces pass it stops and
+asks before reading your platform at all.
+
 The first step is the one that matters: deciding what *one request* is. The answer is whatever a
 person would re-run when they say "this answer was wrong". Get it wrong and you get a tidy trace
 of the wrong thing, which grades well and helps nobody.
@@ -69,7 +73,8 @@ the fix. It never edits your code.
 
 **trace-fix** — *"make my traces pass"* · `/mega-loop:trace-fix`
 Edits your instrumentation: applies the kit, works the findings top-down, and re-runs the validator
-until the verdicts reach `entry_seatable`, reporting the before/after. Runs the validator with
+until the verdicts reach `entry_seatable`, reporting the before/after. Both numbers come from the
+same local collector, so the comparison is of the code and not of two different windows. Runs the validator with
 `uv run`, so its dependencies never touch your project. When the traces are green, connect the
 project and let MEGA Loop find the real bugs.
 
