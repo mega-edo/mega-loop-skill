@@ -22,6 +22,7 @@ import {
   type Tracer,
 } from '@opentelemetry/api'
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node'
+import { createRequire } from 'node:module'
 import { W3CTraceContextPropagator, type ExportResult } from '@opentelemetry/core'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { registerInstrumentations, type Instrumentation } from '@opentelemetry/instrumentation'
@@ -47,8 +48,9 @@ export interface TracingOptions {
   serviceVersion?: string
   resourceAttributes?: Record<string, string>
   /**
-   * Replaces the default, `defaultInstrumentations()`. To add an LLM SDK's instrumentation
-   * (OpenInference's), pass `[...defaultInstrumentations(), new OpenAIInstrumentation()]`.
+   * Replaces the default, `defaultInstrumentations()` — which already includes OpenInference's
+   * instrumentation for every LLM SDK you have installed. Pass this only to add something the
+   * default does not cover: `[...defaultInstrumentations(), new MyInstrumentation()]`.
    */
   instrumentations?: Instrumentation[]
 }
@@ -66,7 +68,10 @@ function endpointAndHeaders(): { url: string; headers: Record<string, string> } 
   const explicit = process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim()
   if (explicit) return { url: `${explicit.replace(/\/$/, '')}/v1/traces`, headers: {} }
 
-  const langfuseHost = process.env.LANGFUSE_HOST?.trim()
+  // LANGFUSE_BASE_URL is the name Langfuse's current SDK documents; LANGFUSE_HOST is what it
+  // called the same thing before v4. Reading both means a project that set either one is already
+  // configured, and nobody has to set a second variable to satisfy this kit.
+  const langfuseHost = (process.env.LANGFUSE_BASE_URL ?? process.env.LANGFUSE_HOST)?.trim()
   if (langfuseHost) {
     return {
       url: `${langfuseHost.replace(/\/$/, '')}/api/public/otel/v1/traces`,
@@ -294,6 +299,85 @@ class SkipModelCallTransport implements Sampler {
   }
 }
 
+// On the global object, not in module variables: a bundler (Next.js builds `instrumentation.ts`
+// and each route separately) can load this file twice. A route's copy would otherwise hold an
+// empty registry while the provider fills the other one, and no provider at all to flush.
+const shared = globalThis as Record<symbol, unknown>
+
+/**
+ * OpenInference's instrumentations, tried in this order. A package that is not installed is
+ * skipped — instrumenting an SDK the app does not use is not an error.
+ *
+ * **This is the trace format MEGA Loop reads.** It takes the messages of a model call from
+ * `llm.input_messages` / `llm.output_messages`, the model from `llm.model_name` and the kind from
+ * `openinference.span.kind`, and OpenInference is what writes them. OpenTelemetry's own `gen_ai`
+ * instrumentation records the call without its messages, which is why `defaultInstrumentations`
+ * turns it off: a trace with `gen_ai` spans and no OpenInference ones has model calls MEGA Loop
+ * can see but not read.
+ *
+ * The same list as the Python kit's. llama-index is on it although its JS package has published
+ * nothing since 2024 and today ships an empty entry point: an entry costs nothing, and the day
+ * Arize republishes it, an app that installs it is instrumented without this file changing. Until
+ * then the loader below reports it — an app that installed it expecting LlamaIndex spans should
+ * hear that it will not get them, rather than find out from an empty trace.
+ */
+const OPENINFERENCE: ReadonlyArray<readonly [string, string]> = [
+  ['@arizeai/openinference-instrumentation-openai', 'OpenAIInstrumentation'],
+  ['@arizeai/openinference-instrumentation-anthropic', 'AnthropicInstrumentation'],
+  ['@arizeai/openinference-instrumentation-langchain', 'LangChainInstrumentation'],
+  ['@arizeai/openinference-instrumentation-bedrock', 'BedrockInstrumentation'],
+  // Class name unverified against a published build, for the reason above; a rename lands in the
+  // loader's "exports no X" branch rather than throwing.
+  ['@arizeai/openinference-instrumentation-llama-index', 'LlamaIndexInstrumentation'],
+]
+
+const OPENINFERENCE_KEY = Symbol.for('mega-loop.trace-kit.openinference')
+
+/**
+ * The OpenInference instrumentations this app has installed, one instance each.
+ *
+ * Resolved from the entrypoint rather than from this file, the way `register.ts` resolves its
+ * module hook: the kit is copied into a consumer's repo, and both have to find the app's
+ * `node_modules`. Loaded with `createRequire` and not `import()` because an instrumentation has to
+ * be registered before the SDK it patches is loaded, and `setupTracing` is synchronous.
+ *
+ * Memoized, so calling this again hands back the instances that were registered — which is how an
+ * ES-module app reaches one to call `manuallyInstrument` on it.
+ */
+export function openInferenceInstrumentations(): Instrumentation[] {
+  const cached = shared[OPENINFERENCE_KEY] as Instrumentation[] | undefined
+  if (cached) return cached
+
+  const requireFromApp = createRequire(process.argv[1] ?? `${process.cwd()}/`)
+  const found: Instrumentation[] = []
+  for (const [moduleName, className] of OPENINFERENCE) {
+    let exported: unknown
+    try {
+      exported = (requireFromApp(moduleName) as Record<string, unknown>)[className]
+    } catch (error) {
+      // `MODULE_NOT_FOUND` covers two cases that need no warning: the instrumentation is not
+      // installed, or it is but the SDK it patches is not — these packages require their SDK at
+      // load time. Either way the app does not call that provider. Any OTHER error means an
+      // installed instrumentation failed to load, whose only symptom is model calls arriving with
+      // no messages on them, so it does not pass in silence.
+      if ((error as NodeJS.ErrnoException | undefined)?.code !== 'MODULE_NOT_FOUND') {
+        diag.warn(`${moduleName} failed to load; its LLM spans will be missing — ${String(error)}`)
+      }
+      continue
+    }
+    if (typeof exported !== 'function') {
+      // Installed but not what we expected — a major version that renamed its class. Saying so is
+      // the difference between a missing LLM span and a silent one.
+      diag.warn(`${moduleName} exports no ${className}; LLM spans from it will be missing`)
+      continue
+    }
+    found.push(new (exported as new () => Instrumentation)())
+    diag.info(`OpenInference: instrumented ${moduleName}`)
+  }
+  shared[OPENINFERENCE_KEY] = found
+  return found
+}
+
 /**
  * The Node auto-instrumentations, minus the spans nothing can use.
  *
@@ -306,6 +390,10 @@ class SkipModelCallTransport implements Sampler {
  * - `net` and `dns`: empty spans under every request.
  */
 export function defaultInstrumentations(): Instrumentation[] {
+  return [...openInferenceInstrumentations(), ...nodeAutoInstrumentations()]
+}
+
+function nodeAutoInstrumentations(): Instrumentation[] {
   return getNodeAutoInstrumentations({
     '@opentelemetry/instrumentation-express': {
       // ExpressLayerType's values; the enum's package is not one the kit asks you to install.
@@ -317,11 +405,6 @@ export function defaultInstrumentations(): Instrumentation[] {
     '@opentelemetry/instrumentation-dns': { enabled: false },
   })
 }
-
-// On the global object, not in module variables: a bundler (Next.js builds `instrumentation.ts`
-// and each route separately) can load this file twice. A route's copy would otherwise hold an
-// empty registry while the provider fills the other one, and no provider at all to flush.
-const shared = globalThis as Record<symbol, unknown>
 
 const REGISTRY_KEY = Symbol.for('mega-loop.trace-kit.entry-spans')
 const entrySpans = (shared[REGISTRY_KEY] ??= new EntrySpanRegistry()) as EntrySpanRegistry
