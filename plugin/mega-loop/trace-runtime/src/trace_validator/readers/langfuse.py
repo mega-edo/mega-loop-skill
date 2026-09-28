@@ -21,7 +21,11 @@ _MAX_PAGES = 50  # a runaway pager on a busy project is worse than an incomplete
 
 class LangfuseReader:
     def __init__(self, *, since_hours: int = 24, timeout: float = 30.0) -> None:
+        # LANGFUSE_BASE_URL is the name Langfuse's current SDK documents; LANGFUSE_HOST is what
+        # it called the same thing before v4. The kits write with either, so reading either keeps
+        # one variable enough for a whole project.
         self.host = require_env(
+            "LANGFUSE_BASE_URL",
             "LANGFUSE_HOST",
             hint="Set it to your Langfuse URL, e.g. https://cloud.langfuse.com",
         ).rstrip("/")

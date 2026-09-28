@@ -64,7 +64,12 @@ def _endpoint_and_headers() -> tuple[str, dict[str, str]]:
     if explicit:
         return explicit.rstrip("/") + "/v1/traces", {}
 
-    langfuse_host = os.environ.get("LANGFUSE_HOST", "").strip()
+    # LANGFUSE_BASE_URL is the name Langfuse's current SDK documents; LANGFUSE_HOST is what it
+    # called the same thing before v4. Reading both means a project that set either one is
+    # already configured, and nobody has to set a second variable to satisfy this kit.
+    langfuse_host = (
+        os.environ.get("LANGFUSE_BASE_URL") or os.environ.get("LANGFUSE_HOST", "")
+    ).strip()
     if langfuse_host:
         return langfuse_host.rstrip("/") + "/api/public/otel/v1/traces", _langfuse_headers()
 

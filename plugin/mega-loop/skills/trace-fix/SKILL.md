@@ -76,6 +76,46 @@ No `uv`? `pip install pydantic httpx` once, then use `python` in place of `uv ru
 4. **Stop at `entry_seatable`**, on traces that crossed the boundaries you identified. Report the
    before/after: which verdicts moved, and how few attributes it actually took.
 
+   **Take both numbers from a local collector.** A platform window (`--last 50`) reaches back over
+   the traces the broken code wrote, so an after-number measured there is the two mixed together —
+   it understates the fix, and it keeps understating it for every grade computed later, including
+   MEGA Loop's own. Worse, the broken traces stay on the customer's platform, and clearing them is
+   not yours to do. With no platform variables set the kit exports to `http://localhost:6006`, so
+   a local Phoenix gives you somewhere to send both runs. Start one, wait for it, and stop it after
+   — see trace-gen's step 4 for the timeout and the wait, which matter on a first run:
+
+   ```bash
+   UV_HTTP_TIMEOUT=120 uvx arize-phoenix serve > /tmp/mega-loop-phoenix.log 2>&1 &
+   echo $! > /tmp/mega-loop-phoenix.pid
+   for i in $(seq 150); do
+     curl -sf -o /dev/null http://localhost:6006/ && break
+     [ -f /tmp/mega-loop-phoenix.pid ] && ! kill -0 "$(cat /tmp/mega-loop-phoenix.pid)" 2>/dev/null \
+       && { tail /tmp/mega-loop-phoenix.log; break; }
+     sleep 2
+   done
+   curl -sf -o /dev/null http://localhost:6006/ \
+     || echo "Phoenix is not up — see /tmp/mega-loop-phoenix.log, or docker logs mega-loop-phoenix"
+   ```
+
+   Then each run, before and after, goes to it:
+
+   ```bash
+   env -u LANGFUSE_BASE_URL -u LANGFUSE_HOST -u OTEL_EXPORTER_OTLP_ENDPOINT <run the app>
+   uv run "${CLAUDE_PLUGIN_ROOT}/trace-runtime/scripts/validate_traces.py" --platform phoenix --last 20
+   ```
+
+   And only when both numbers are in:
+
+   ```bash
+   kill "$(cat /tmp/mega-loop-phoenix.pid)"
+   ```
+
+   Measure the before on the unfixed code, fix, measure the after — same collector, same request
+   mix, nothing else in the window. That is where you stop on your own: the export path is the one
+   thing local cannot reach, but pointing the app at the user's platform and reading production are
+   their calls, not yours. Report the local before/after, say the export path is still untested,
+   and ask whether to grade their platform. On a yes, read it — do not generate traffic for it.
+
 ## Applicability is not a bug to fix
 
 `S2_signal_density`, `S3_detectable_work`, `S4_payload_weight` and `M7_token_usage` are warnings,

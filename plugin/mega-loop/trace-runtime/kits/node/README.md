@@ -2,8 +2,8 @@
 
 Two files to copy into your project. The examples below put them in `src/tracing/`:
 
-- `src/instrument.ts` — the setup: exporter, `traceparent` propagator, the Node
-  auto-instrumentations, and `setRequestInput` / `setRequestOutput`.
+- `src/instrument.ts` — the setup: exporter, `traceparent` propagator, OpenInference's LLM
+  instrumentation, the Node auto-instrumentations, and `setRequestInput` / `setRequestOutput`.
 - `src/register.ts` — turns tracing on when it is loaded. This is the file you preload.
 
 Plain Node, Express, Koa and NestJS all use both. Next.js uses `instrument.ts` only, and calls
@@ -18,6 +18,39 @@ npm install @opentelemetry/api @opentelemetry/sdk-trace-node \
             @opentelemetry/instrumentation @opentelemetry/auto-instrumentations-node
 ```
 
+Then the OpenInference instrumentation for the LLM SDKs you actually call:
+
+```bash
+npm install @arizeai/openinference-instrumentation-openai
+npm install @arizeai/openinference-instrumentation-anthropic
+npm install @arizeai/openinference-instrumentation-langchain   # LangChain / LangGraph
+npm install @arizeai/openinference-instrumentation-bedrock
+npm install @arizeai/openinference-instrumentation-llama-index   # see the note below
+```
+
+**This is the part MEGA Loop reads.** It takes a model call's messages from
+`llm.input_messages` / `llm.output_messages`, the model from `llm.model_name`, and every span's kind
+from `openinference.span.kind` — and OpenInference is what writes them. `setupTracing()` loads
+whichever of these you installed, with no wiring from you; one that is absent is skipped, and so
+is one whose SDK you do not have (these packages require their SDK at load). OpenTelemetry's own
+OpenAI instrumentation is turned off on purpose: it records the call as `gen_ai.*` **without the
+messages**, so a trace built on it has model calls MEGA Loop can see but cannot read.
+
+**Check the SDK major.** An instrumentation patches only the majors it names — at 4.2.7 the OpenAI
+one patches `openai` `^5`, `^6` and `^7`. Point it at an SDK outside that range and it registers,
+patches nothing, and says nothing: no LLM span, no warning, the same symptom as never installing it.
+If model calls are missing, compare your SDK's major against the range in the instrumentation's
+`init()` before looking anywhere else.
+
+The llama-index package is the one exception: it has published nothing since 2024 and its current
+build exports no instrumentation, so installing it changes nothing and the kit says so on startup.
+It stays on the list for the day that changes.
+
+Skip this and the traces still pass every hard readiness check — `setRequestInput` seats the
+request, and the kind default labels the rest — while containing no model call at all. The only
+complaint is one soft warning, `S3_detectable_work`. That is the failure worth avoiding: it looks
+ready.
+
 `auto-instrumentations-node` covers HTTP, `fetch`, Express, Koa, Hapi, NestJS, database clients
 and more. It is what makes `traceparent` travel between services without hand-written code.
 `setupTracing()` registers it as `defaultInstrumentations()`, which drops the spans nothing can use:
@@ -30,30 +63,27 @@ sampler, `OTEL_TRACES_SAMPLER` is not read; to sample, change `SkipModelCallTran
 The skipped request still carries a `traceparent`, marked not sampled: if your model endpoint is a
 traced service of your own (an LLM gateway), exempt it in the sampler or its spans are dropped.
 
-If you call the OpenAI SDK directly, add the OpenInference instrumentation so LLM spans carry
-`llm.*` attributes automatically:
-
-```bash
-npm install @arizeai/openinference-instrumentation-openai
-```
-
-Pass it in `register.ts`:
+If no LLM spans appear in an **ES-module** app, an instrumentation could not patch an SDK that was
+already bound. Reach the instance the kit registered and patch it by hand after importing the SDK:
 
 ```ts
-import { OpenAIInstrumentation } from '@arizeai/openinference-instrumentation-openai'
+import OpenAI from 'openai'
+import { openInferenceInstrumentations } from './tracing/instrument.js'
 
-const openAI = new OpenAIInstrumentation()
-setupTracing({ instrumentations: [...defaultInstrumentations(), openAI] })
+const openAI = openInferenceInstrumentations().find((i) =>
+  i.instrumentationName.endsWith('openai'),
+)
+;(openAI as { manuallyInstrument?: (m: unknown) => void })?.manuallyInstrument?.(OpenAI)
 ```
 
-If no LLM spans appear in an ES-module app, also call `openAI.manuallyInstrument(OpenAI)` after
-importing the SDK.
+To add an instrumentation the kit does not know about, pass it alongside the defaults:
+`setupTracing({ instrumentations: [...defaultInstrumentations(), new MyInstrumentation()] })`.
 
 ## 2. Point it at your platform
 
 ```bash
 # Langfuse
-export LANGFUSE_HOST=https://cloud.langfuse.com
+export LANGFUSE_BASE_URL=https://cloud.langfuse.com   # LANGFUSE_HOST also works (pre-v4 name)
 export LANGFUSE_PUBLIC_KEY=pk-lf-…
 export LANGFUSE_SECRET_KEY=sk-lf-…
 
