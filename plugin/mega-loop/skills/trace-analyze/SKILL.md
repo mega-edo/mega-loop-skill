@@ -41,6 +41,17 @@ No `uv`? Run `pip install pydantic httpx` once, then use `python` in place of `u
 
 1. **If they already emit traces, grade those first** (`--platform … --last 50`). It tells you which
    of the problems you are dealing with and gives you a real before-number for trace-fix to beat.
+
+   Ask what is in that window before reading the number. Fifty traces are whatever was sent most
+   recently, so on a project mid-instrumentation they are mostly attempts — spans written before
+   the kit was in place, requests seated only halfway — and a grade over that mixture describes the
+   session rather than the code. Say which traces the number came from. When the window is mostly
+   attempts, the number to report is a fresh one: run the app on the current code and grade that,
+   to a local collector if you do not want more traces on the customer's platform
+   (`docker run -d -p 6006:6006 arizephoenix/phoenix`, then no platform variables set).
+
+   This does not apply to traces the app has been writing all along. Grading those IS the job —
+   they are production, not an experiment, and their composition is the finding.
 2. **No traces yet, or no credentials? Grade the source** (`--source .`). This works with nothing
    emitted, and every finding names a `file:line` to open. A clean board here is **not** a pass —
    only real traces settle it — but it is the fastest way to start.

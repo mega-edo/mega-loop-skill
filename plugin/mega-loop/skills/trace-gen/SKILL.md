@@ -108,20 +108,66 @@ Three rules the contract will not forgive:
 
 A source with no traces cannot be graded. Nothing before this point is evidence.
 
-Run the app the way a user would — a request, a ticket, a command — enough times to see more than
-one path, then:
+**Do the loop on a local collector, and start it yourself.** The loop below runs the app several
+times, and the early runs are the ones where the instrumentation is still wrong. Sent to the user's
+platform they sit beside the good traces for good: every grade computed afterwards — this skill's,
+and MEGA Loop's own — averages the attempts with the result, and a reader who sees `Degraded 16/69`
+concludes the code is wrong when what is wrong is the history. Nothing un-mixes them later, and
+clearing a customer's traces is not yours to do.
+
+```bash
+docker run -d --name trace-gen-phoenix -p 6006:6006 arizephoenix/phoenix
+```
+
+Point the app at it with `OTEL_EXPORTER_OTLP_ENDPOINT`. The kit reads that before any platform
+variable, and `dotenv` does not overwrite a variable the shell already set — so this wins over a
+`.env` holding Langfuse credentials, and you never edit the user's file:
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:6006 <run the app>
+```
+
+Drive it the way a user would — a request, a ticket, a command — enough times to see more than one
+path, then grade what arrived:
 
 ```bash
 uv run "${CLAUDE_PLUGIN_ROOT}/trace-runtime/scripts/validate_traces.py" \
-  --platform <langfuse|phoenix|langsmith> --last 20
+  --platform phoenix --last 20
 ```
 
 Work every failure line: each is followed by a `→` with the exact fix. Re-run until the sample
 reaches `entry_seatable`.
 
-**Watch the sample composition, not just the verdict.** If the traffic you generated is mostly
-health checks or one repeated call, a passing grade says nothing about the traffic that matters.
-Grade a window wide enough to include the real work.
+**Stop here and ask before the platform is involved at all.** The local loop is the last thing you
+do on your own. Pointing the app at the user's platform changes where their application sends data,
+and reading that platform is reading production — neither is yours to decide. So report the local
+result, name what is still unproven, and wait:
+
+> The instrumentation passes on a local collector: 12 traces, all `entry_seatable`. What local
+> cannot prove is the export path — credentials, endpoint, and what your platform does to a span on
+> ingest. Shall I drop the local override and grade what your platform has, once the app has served
+> a request on its own configuration?
+
+On a yes, and not before:
+
+```bash
+docker rm -f trace-gen-phoenix
+uv run "${CLAUDE_PLUGIN_ROOT}/trace-runtime/scripts/validate_traces.py" \
+  --platform <langfuse|phoenix|langsmith> --last 20
+```
+
+Read it; do not feed it. The app exports on its own configuration, so whatever it really serves —
+in a demo, the one request someone makes — is the confirmation. Generating extra requests would put
+synthetic rows in someone's real data and prove nothing local did not already prove.
+
+Two outcomes, both worth reporting:
+
+- **Nothing arrived.** The spans were right and the export is not — a wrong key, a wrong URL, a
+  blocked egress. That is the whole finding, and it is invisible from local.
+- **They arrived and grade differently from local.** The spans left in one shape and came back in
+  another, which is the platform's own mapping. Report both numbers rather than picking one.
+
+On a no, stop at the local result and say plainly that the export path is untested.
 
 ## Step 5 — hand back what it cost
 
@@ -131,6 +177,8 @@ Report what a reader can act on:
 - how many spans one request produces, and what each is for
 - the verdict on real traces, before-and-after where there is a before
 - every boundary from step 1 you did **not** instrument, and what that leaves unmeasured
+- **which traces the numbers came from** — the local run, the confirming platform run, or both —
+  and any disagreement between the two
 
 ## Applicability is not a defect
 
