@@ -1,0 +1,2 @@
+# Copied from the kit's src/ by the e2e test before each build — the kit is the source of truth.
+src/tracing/

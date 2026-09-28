@@ -1,16 +1,15 @@
 {
-  "name": "mega-loop-trace-kit",
-  "version": "0.1.0",
+  "name": "kit-fixture-nestjs",
   "private": true,
-  "type": "module",
-  "description": "OpenTelemetry setup that emits the MEGA Loop trace contract from a Node agent.",
+  "description": "A minimal NestJS app the kit's e2e test instruments, the way a user would.",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "example": "npm run build && node dist/example-agent.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node --test test/*.test.mjs"
+    "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@arizeai/openinference-instrumentation-openai": "^4.2.7",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/auto-instrumentations-node": "^0.80.0",
     "@opentelemetry/core": "^2.0.0",
@@ -18,7 +17,10 @@
     "@opentelemetry/instrumentation": "^0.222.0",
     "@opentelemetry/resources": "^2.0.0",
     "@opentelemetry/sdk-trace-node": "^2.0.0",
-    "@opentelemetry/semantic-conventions": "^1.28.0"
+    "@opentelemetry/semantic-conventions": "^1.28.0",
+    "openai": "^5.0.0",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.8.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
