@@ -115,8 +115,52 @@ and MEGA Loop's own — averages the attempts with the result, and a reader who 
 concludes the code is wrong when what is wrong is the history. Nothing un-mixes them later, and
 clearing a customer's traces is not yours to do.
 
+Start ONE of these. `uv` is what this plugin expects and Docker is not, so prefer it; either
+listens on `http://localhost:6006`.
+
 ```bash
-docker run -d --name trace-gen-phoenix -p 6006:6006 arizephoenix/phoenix
+UV_HTTP_TIMEOUT=120 uvx arize-phoenix serve > /tmp/mega-loop-phoenix.log 2>&1 &
+echo $! > /tmp/mega-loop-phoenix.pid
+```
+
+```bash
+rm -f /tmp/mega-loop-phoenix.pid    # a pid left by an earlier uv run would mislead the wait
+docker run -d --name mega-loop-phoenix -p 6006:6006 arizephoenix/phoenix
+```
+
+The raised timeout is not decoration: uv defaults to 30 s per request, and one index page in
+Phoenix's dependency tree is large enough to exceed it on an ordinary link. Without it the install
+fails at `watchfiles` and never starts.
+
+Its output goes to a log rather than to your terminal. Left attached, a backgrounded process keeps
+the Bash call open until it exits — and the log is what tells you why an install failed.
+
+**Wait for it before sending anything.** The first run downloads a large package — measured at
+three minutes here, longer than a Bash call's default two — and every span sent before it listens
+is lost. The loop gives up rather than spinning forever when the install is the thing that failed.
+If the call times out before Phoenix answers, raise the timeout or simply run it again: the install
+carries on in the background, so the second wait is short.
+
+```bash
+for i in $(seq 150); do
+  curl -sf -o /dev/null http://localhost:6006/ && break
+  # only when uv started it: under Docker there is no pid file, and an absent one
+  # must not read as "it died"
+  [ -f /tmp/mega-loop-phoenix.pid ] && ! kill -0 "$(cat /tmp/mega-loop-phoenix.pid)" 2>/dev/null \
+    && { tail /tmp/mega-loop-phoenix.log; break; }
+  sleep 2
+done
+curl -sf -o /dev/null http://localhost:6006/ \
+  || echo "Phoenix is not up — see /tmp/mega-loop-phoenix.log, or docker logs mega-loop-phoenix"
+```
+
+Stop it when the loop is done, by the id you saved. Two shorter-looking ways are both wrong here:
+a job number (`%1`) is gone, because each Bash call runs in its own shell; and `pkill -f
+"arize-phoenix serve"` matches the command line of the shell running the `pkill`, so it kills that
+too.
+
+```bash
+kill "$(cat /tmp/mega-loop-phoenix.pid)"     # or: docker rm -f mega-loop-phoenix
 ```
 
 Point the app at it with `OTEL_EXPORTER_OTLP_ENDPOINT`. The kit reads that before any platform
@@ -138,6 +182,12 @@ uv run "${CLAUDE_PLUGIN_ROOT}/trace-runtime/scripts/validate_traces.py" \
 Work every failure line: each is followed by a `→` with the exact fix. Re-run until the sample
 reaches `entry_seatable`.
 
+**Watch the sample, not just the verdict.** A grade is only as good as the traffic behind it. If
+what you drove was mostly health checks, or one call repeated, every trace can pass and still say
+nothing about the paths that matter. Drive the real work, and drive it across any boundary a
+request really crosses — a test inside one process passes whether or not context propagates, which
+is the failure you are trying to rule out.
+
 **Stop here and ask before the platform is involved at all.** The local loop is the last thing you
 do on your own. Pointing the app at the user's platform changes where their application sends data,
 and reading that platform is reading production — neither is yours to decide. So report the local
@@ -151,7 +201,7 @@ result, name what is still unproven, and wait:
 On a yes, and not before:
 
 ```bash
-docker rm -f trace-gen-phoenix
+kill "$(cat /tmp/mega-loop-phoenix.pid)"     # or: docker rm -f mega-loop-phoenix
 uv run "${CLAUDE_PLUGIN_ROOT}/trace-runtime/scripts/validate_traces.py" \
   --platform <langfuse|phoenix|langsmith> --last 20
 ```

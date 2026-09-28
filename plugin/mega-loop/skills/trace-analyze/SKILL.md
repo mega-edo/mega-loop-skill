@@ -48,7 +48,8 @@ No `uv`? Run `pip install pydantic httpx` once, then use `python` in place of `u
    session rather than the code. Say which traces the number came from. When the window is mostly
    attempts, the number to report is a fresh one: run the app on the current code and grade that,
    to a local collector if you do not want more traces on the customer's platform
-   (`docker run -d -p 6006:6006 arizephoenix/phoenix`, then no platform variables set).
+   (`arizephoenix/phoenix` under Docker, or `uv`, with no platform variables set; see trace-gen's
+   step 4 for the start, the wait and the stop, which have traps in all three).
 
    This does not apply to traces the app has been writing all along. Grading those IS the job —
    they are production, not an experiment, and their composition is the finding.

@@ -70,7 +70,7 @@ Plain words work too: *"are my traces good enough?"*, *"make my traces pass"*.
 
 ### What this needs
 
-**Nothing, to start.** While `trace-gen` and `trace-fix` are still getting the instrumentation right, traces go to a local collector the skill starts and removes itself. One command, `uvx arize-phoenix serve`. The attempts stay on your machine. **Nothing reaches your platform until you say so.**
+**Nothing, to start.** While `trace-gen` and `trace-fix` are still getting the instrumentation right, traces go to a local collector the skill starts and removes itself. One command: `uvx arize-phoenix serve`, or the same thing in Docker if you do not have `uv`. The attempts stay on your machine. **Nothing reaches your platform until you say so.**
 
 **Your platform's keys, when you choose to grade it.** The local loop proves the spans are written right. It cannot prove the export works — the keys, the URL, and what your platform does to a span when it arrives. So the skill stops, shows you the local result, and asks before it reads your platform.
 

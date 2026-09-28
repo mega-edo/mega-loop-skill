@@ -81,11 +81,33 @@ No `uv`? `pip install pydantic httpx` once, then use `python` in place of `uv ru
    it understates the fix, and it keeps understating it for every grade computed later, including
    MEGA Loop's own. Worse, the broken traces stay on the customer's platform, and clearing them is
    not yours to do. With no platform variables set the kit exports to `http://localhost:6006`, so
-   `docker run -d -p 6006:6006 arizephoenix/phoenix` gives you somewhere to send both runs:
+   a local Phoenix gives you somewhere to send both runs. Start one, wait for it, and stop it after
+   — see trace-gen's step 4 for the timeout and the wait, which matter on a first run:
+
+   ```bash
+   UV_HTTP_TIMEOUT=120 uvx arize-phoenix serve > /tmp/mega-loop-phoenix.log 2>&1 &
+   echo $! > /tmp/mega-loop-phoenix.pid
+   for i in $(seq 150); do
+     curl -sf -o /dev/null http://localhost:6006/ && break
+     [ -f /tmp/mega-loop-phoenix.pid ] && ! kill -0 "$(cat /tmp/mega-loop-phoenix.pid)" 2>/dev/null \
+       && { tail /tmp/mega-loop-phoenix.log; break; }
+     sleep 2
+   done
+   curl -sf -o /dev/null http://localhost:6006/ \
+     || echo "Phoenix is not up — see /tmp/mega-loop-phoenix.log, or docker logs mega-loop-phoenix"
+   ```
+
+   Then each run, before and after, goes to it:
 
    ```bash
    env -u LANGFUSE_BASE_URL -u LANGFUSE_HOST -u OTEL_EXPORTER_OTLP_ENDPOINT <run the app>
    uv run "${CLAUDE_PLUGIN_ROOT}/trace-runtime/scripts/validate_traces.py" --platform phoenix --last 20
+   ```
+
+   And only when both numbers are in:
+
+   ```bash
+   kill "$(cat /tmp/mega-loop-phoenix.pid)"
    ```
 
    Measure the before on the unfixed code, fix, measure the after — same collector, same request
