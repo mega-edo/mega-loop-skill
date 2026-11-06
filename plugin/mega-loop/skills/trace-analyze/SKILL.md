@@ -68,7 +68,7 @@ whether the request crosses a process boundary (a second service, a worker, a qu
 
 ## The report: four questions, in priority order
 
-The validator rolls fifteen checks into one **verdict** per trace — the worst thing wrong wins.
+The validator rolls sixteen checks into one **verdict** per trace — the worst thing wrong wins.
 Present it as four answers, and keep question 4 on its own line, because it is **not** part of the
 verdict.
 
@@ -124,6 +124,10 @@ still be useless. Surface them on their own line so nobody reads a passing verdi
   names the attribute, so the fix is "store a reference, not the bytes" — not "trace less".
 - `M7_token_usage` — do LLM spans record token counts? Without them cost, budget and
   cost-regression attribution are blind.
+- `S5_declared_tools` — the trace runs tools: does any LLM span record the tool list the model was
+  given (`llm.tools.<i>.tool.json_schema`)? Without it a tool the model invented reads like one
+  that failed, and arguments cannot be checked against the schema the model saw. A hand-written
+  model-call span is the usual cause; the fix is mechanical — record the `tools` argument.
 
 ## The summary is the plan
 

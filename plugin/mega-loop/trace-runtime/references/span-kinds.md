@@ -29,7 +29,7 @@ on it, though, so a step labelled `PROMPT` is invisible to detection just the sa
 | Kind | Must have | Should have |
 |---|---|---|
 | root (`CHAIN`/`AGENT`) | `input.value` — the user's request | `output.value` — the final answer |
-| `LLM` | `llm.model_name` | `llm.token_count.prompt` / `.completion` / `.total`, `llm.input_messages.*`, `llm.output_messages.*`, `llm.invocation_parameters` |
+| `LLM` | `llm.model_name`; `llm.tools.*` when the call passes tools | `llm.token_count.prompt` / `.completion` / `.total`, `llm.input_messages.*`, `llm.output_messages.*`, `llm.invocation_parameters` |
 | `TOOL` | `input.value` (the arguments), `output.value` (the result) | the tool's name as the span name |
 | `RETRIEVER` | `input.value` (the query) | `retrieval.documents.<i>.document.content` / `.score` |
 | `EMBEDDING` | `llm.model_name` | `llm.token_count.prompt` |
@@ -60,8 +60,15 @@ Indices are contiguous from 0, and `tool_calls.<j>` is counted **per message**.
 llm.tools.<i>.tool.json_schema    the schema you gave the model (function.name, function.parameters)
 ```
 
-Worth emitting once per trace: it lets MEGA Loop tell "the model called a tool that does not
-exist" apart from "the tool failed."
+Required whenever the model is offered tools — on every LLM span whose call passes `tools`, and
+once per trace at the very least. It is what lets MEGA Loop tell "the model called a tool that
+does not exist" apart from "the tool failed", and check a call's arguments against the schema the
+model actually saw. Each value is one tool exactly as you passed it, as a JSON string:
+`{"type": "function", "function": {"name": …, "description": …, "parameters": …}}`.
+
+An SDK instrumentor records this for you. A hand-written model-call span usually does not: the
+`tools` argument sits beside the call and the span keeps only the prompt. `S5_declared_tools`
+warns when a trace runs tools and no LLM span declares them.
 
 ## Spans you do not open yourself
 

@@ -19,6 +19,9 @@ Install:
 
     pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http \\
                 openinference-instrumentation-openai openinference-instrumentation-anthropic
+
+    # an app that calls models through LiteLLM needs its own instrumentor instead:
+    pip install openinference-instrumentation-litellm
 """
 
 from __future__ import annotations
@@ -43,6 +46,8 @@ logger = logging.getLogger(__name__)
 _INSTRUMENTORS = (
     ("openinference.instrumentation.openai", "OpenAIInstrumentor"),
     ("openinference.instrumentation.anthropic", "AnthropicInstrumentor"),
+    # LiteLLM reaches providers over its own HTTP client, so the OpenAI one above never sees it.
+    ("openinference.instrumentation.litellm", "LiteLLMInstrumentor"),
     ("openinference.instrumentation.langchain", "LangChainInstrumentor"),
     ("openinference.instrumentation.llama_index", "LlamaIndexInstrumentor"),
     ("openinference.instrumentation.bedrock", "BedrockInstrumentor"),

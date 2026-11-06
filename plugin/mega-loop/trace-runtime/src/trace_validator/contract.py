@@ -97,6 +97,9 @@ OI_TOK_TOTAL = "llm.token_count.total"
 OI_IN_MESSAGES = "llm.input_messages"
 OI_OUT_MESSAGES = "llm.output_messages"
 OI_INVOCATION = "llm.invocation_parameters"
+#: ``llm.tools.<i>.tool.json_schema`` — the tool list the model was given (mega_loop/detect.py
+#: ``_declared_tools``). Without it a tool the model invented and a tool that failed look alike.
+OI_TOOLS = "llm.tools"
 
 #: Indexed families whose index sits directly after the prefix. ``tool_calls`` is absent on
 #: purpose — it nests under the output-message index and is checked separately.
@@ -251,7 +254,7 @@ FINDING_CLASS_GLOSS = {
 }
 
 #: The checks with no ``fail`` branch: they only ever warn. Documentation vocabulary — the
-#: report's "four of fifteen are never fatal" wording, and the drift test that pins it.
+#: report's "five of sixteen are never fatal" wording, and the drift test that pins it.
 #:
 #: It is deliberately *not* what splits the fix plan from the advisory block. That split asks
 #: whether a finding moved its trace's verdict, which ``Check.blocking`` reads off the verdict
@@ -263,6 +266,7 @@ NEVER_FATAL = frozenset(
         "S2_signal_density",
         "S3_detectable_work",
         "S4_payload_weight",
+        "S5_declared_tools",
         "M7_token_usage",
     }
 )

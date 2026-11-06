@@ -54,7 +54,7 @@ attribute names are the same strings either way.
 
 **trace-analyze** — *"are my traces good enough for MEGA Loop?"* · `/mega-loop:trace-analyze`
 Read only. Grades your traces — or your source, before any traces exist — against the readiness
-contract MEGA Loop runs internally — fifteen checks, four of them reported but never fatal — and
+contract MEGA Loop runs internally — sixteen checks, five of them reported but never fatal — and
 answers four questions per trace:
 
 1. **Can the request be re-run at all?** — the verdict (`entry_missing` → `detection_gap` →
@@ -63,7 +63,8 @@ answers four questions per trace:
 3. **Where are spans malformed?** — fragmentation, missing span kinds, and the rest.
 4. **Is the trace worth it, and what does it cost?** — a separate, never-fatal line: a trace can be
    perfectly readable and still hold nothing to detect (all CHAIN, mostly mechanical noise, no
-   token counts), or carry megabytes of its own payload on every run.
+   token counts), carry megabytes of its own payload on every run, or run tools without recording
+   the tool list the model was given.
 
 Every finding comes with the exact fix, marked *mechanical* (trace-fix can apply it) or *needs your
 decision*, and the summary orders them by how many traces each clears. A fix that clears none of

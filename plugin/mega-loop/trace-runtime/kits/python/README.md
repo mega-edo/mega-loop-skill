@@ -7,8 +7,13 @@ pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
 # plus the instrumentor(s) for the SDKs you actually use:
 pip install openinference-instrumentation-openai
 pip install openinference-instrumentation-anthropic
+pip install openinference-instrumentation-litellm       # litellm.completion / acompletion
 pip install openinference-instrumentation-langchain     # LangChain / LangGraph
 ```
+
+An instrumentor records each model call whole — its messages, the tool calls it made, and the
+tool list it was offered (`llm.tools.*`). If you open the model-call span yourself instead, record
+all three; the validator's `S5_declared_tools` warns when the tool list is missing.
 
 Also install the auto-instrumentation for your web framework and HTTP client — it is what makes
 `traceparent` propagate without you writing a line:

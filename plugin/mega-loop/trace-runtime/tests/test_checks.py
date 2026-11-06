@@ -440,6 +440,71 @@ def test_weight_never_lowers_the_verdict() -> None:
     assert graded.verdict == "entry_seatable"
 
 
+# --- S5_declared_tools --------------------------------------------------------
+
+
+def _tool_running_trace(**llm_attributes: object) -> list:
+    """A root, one model call and the tool it ran — the hand-rolled LiteLLM shape: the call's
+    messages as JSON in `input.value`, and nothing about the tools it was offered."""
+    return [
+        span(
+            span_id="root",
+            name="run_agent",
+            attributes={"openinference.span.kind": "CHAIN", "input.value": "Is order 7 late?"},
+        ),
+        span(
+            span_id="llm",
+            parent_id="root",
+            name="llm.completion",
+            span_kind="LLM",
+            attributes={
+                "openinference.span.kind": "LLM",
+                "input.value": '[{"role": "user", "content": "Is order 7 late?"}]',
+                "output.value": "",
+                **llm_attributes,
+            },
+        ),
+        span(
+            span_id="tool",
+            parent_id="root",
+            name="tool.get_order",
+            span_kind="TOOL",
+            attributes={
+                "openinference.span.kind": "TOOL",
+                "input.value": '{"id": "7"}',
+                "output.value": '{"status": "late"}',
+            },
+        ),
+    ]
+
+
+def test_a_model_that_runs_tools_without_declaring_them_is_reported() -> None:
+    check = next(c for c in grade(_tool_running_trace()).checks if c.id == "S5_declared_tools")
+    assert check.verdict == "warn"
+    assert check.evidence == ("llm.completion",)
+    assert "llm.tools" in check.fix
+
+
+def test_a_tool_list_on_any_model_call_declares_the_trace() -> None:
+    schema = '{"type": "function", "function": {"name": "get_order", "parameters": {}}}'
+    declared = _tool_running_trace(**{"llm.tools.0.tool.json_schema": schema})
+    assert verdict_of(declared, "S5_declared_tools") == "pass"
+
+
+def test_a_trace_that_runs_no_tool_owes_no_tool_list() -> None:
+    no_tools = [s for s in _tool_running_trace() if s.span_kind != "TOOL"]
+    assert verdict_of(no_tools, "S5_declared_tools") == "not_observed"
+
+
+def test_an_undeclared_tool_list_never_lowers_the_verdict() -> None:
+    """Soft, as the cost checks are: the trace is still readable, the tool checks are blind."""
+    graded = grade(_tool_running_trace())
+    assert graded.verdict == "entry_seatable"
+    assert next(c for c in graded.checks if c.id == "S5_declared_tools").finding_class == (
+        "mechanical"
+    )
+
+
 # --- finding class ------------------------------------------------------------
 
 

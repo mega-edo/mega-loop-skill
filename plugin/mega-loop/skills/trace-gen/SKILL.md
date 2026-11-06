@@ -85,7 +85,7 @@ Then label the steps for what they are:
 
 | Step | Kind | Must carry |
 |---|---|---|
-| model call | `LLM` | prompt, answer, token counts |
+| model call | `LLM` | the messages (`llm.input_messages.*`), the answer and the tool calls it made (`llm.output_messages.*`), token counts — and, when the call passes tools, the tool list it was given (`llm.tools.<i>.tool.json_schema`) |
 | tool / function | `TOOL` | `input.value`, `output.value`, `tool.name` |
 | retrieval | `RETRIEVER` | the documents, in the flat `retrieval.documents.N.*` layout |
 | a sub-agent | `AGENT` | its own input and output |
@@ -93,6 +93,14 @@ Then label the steps for what they are:
 
 Reference: `${CLAUDE_PLUGIN_ROOT}/trace-runtime/references/span-kinds.md` for the keys each kind
 expects, and `context-propagation.md` for every boundary found in step 1.
+
+**Let an instrumentor record the model call** whenever one exists for the client the app uses —
+the Python kit turns on OpenAI, Anthropic, LiteLLM, LangChain, LlamaIndex and Bedrock. It copies
+the messages, the tool calls and the `tools` argument as they were sent. A hand-written model-call
+span is where the tool list goes missing: the `tools` argument sits right beside the call, and a
+span that records only the prompt as `input.value` drops it. Without the list MEGA Loop cannot
+tell a tool the model invented from one that failed, and cannot check arguments against the
+schema the model saw — `S5_declared_tools` warns on exactly that trace.
 
 Three rules the contract will not forgive:
 

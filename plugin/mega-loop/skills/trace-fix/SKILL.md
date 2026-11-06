@@ -69,6 +69,11 @@ No `uv`? `pip install pydantic httpx` once, then use `python` in place of `uv ru
      returning an error as OK text.
    - **Steps with no input/output** (`S1`) — set `input.value`/`output.value` on every LLM, TOOL and
      RETRIEVER span. Tools are usually bare and are where most failures actually are.
+   - **Tools the model was given, unrecorded** (`S5`) — on the model-call span, record each entry
+     of the `tools` argument as `llm.tools.<i>.tool.json_schema`, a JSON string, exactly as passed.
+     The gap is nearly always a hand-written span around a client call; if an OpenInference
+     instrumentor exists for that client (LiteLLM has one), turning it on is the smaller change
+     and also records the messages and the tool calls.
 
 3. **Re-run the validator and fix what it prints.** Every failure line is followed by a `→`
    instruction — do exactly that, then re-run. Repeat until the verdicts clear.
@@ -119,7 +124,8 @@ No `uv`? `pip install pydantic httpx` once, then use `python` in place of `uv ru
 ## Applicability is not a bug to fix
 
 `S2_signal_density`, `S3_detectable_work`, `S4_payload_weight` and `M7_token_usage` are warnings,
-never failures — do not "fix" code to silence them:
+never failures — do not "fix" code to silence them. (`S5_declared_tools` only warns too, but it is
+not applicability: it has a mechanical fix, listed in step 2.)
 - All-CHAIN, nothing to detect (`S3`) → if it is an agent request, **label** the steps (model call
   LLM, its calls TOOL / RETRIEVER). If it is a CRUD or health endpoint, it is simply not agent
   traffic — the fix is to stop tracing it, not to add spans.

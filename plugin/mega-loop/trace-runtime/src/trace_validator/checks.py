@@ -1,4 +1,4 @@
-"""The fifteen checks, and the verdict they roll up to.
+"""The sixteen checks, and the verdict they roll up to.
 
 This mirrors `mega_loop/readiness.py` — same ids, same tiers, same order of precedence — with one
 addition: every check carries a **fix**. Upstream only has to explain a verdict to an operator
@@ -118,6 +118,7 @@ FINDING_CLASS = {
     "S2_signal_density": C.ARCHITECTURAL,  # which instrumentation runs at all
     "S3_detectable_work": C.ARCHITECTURAL,  # whether this traffic belongs in the sample
     "S4_payload_weight": C.ARCHITECTURAL,  # storing a reference instead of the bytes
+    "S5_declared_tools": C.MECHANICAL,  # the `tools` argument is beside the call already
 }
 
 
@@ -385,6 +386,21 @@ def zero_usage_spans(spans: list[Span]) -> list[Span]:
     return out
 
 
+def undeclared_tool_calls(spans: list[Span]) -> list[Span] | None:
+    """The model calls of a trace that runs tools while no model call says which it was offered;
+    None when the trace runs no tool, so there is no list to owe.
+
+    One declaring call clears the trace: an app hands the same list to every turn, and the
+    reference asks for it once per trace at the least. A hand-rolled model call is the usual
+    gap — SDK instrumentors copy the ``tools`` argument themselves.
+    """
+    llm = [s for s in spans if s.span_kind == "LLM"]
+    if not llm or not any(s.span_kind == "TOOL" for s in spans):
+        return None
+    declared = any(str(k).startswith(f"{C.OI_TOOLS}.") for s in llm for k in s.attributes)
+    return [] if declared else llm
+
+
 def detectable_spans(spans: list[Span]) -> list[Span]:
     """Spans a detector would actually look at.
 
@@ -408,7 +424,7 @@ def _check(
     """The one place a graded Check is built.
 
     ``evidence`` defaults to the deduped labels of the failing spans, which is what a reader
-    wants for fourteen of the fifteen checks. A check whose evidence is a measurement rather
+    wants for fifteen of the sixteen checks. A check whose evidence is a measurement rather
     than a location passes its own; keeping that a parameter rather than a second constructor
     is what stops the two drifting.
 
@@ -656,7 +672,25 @@ def grade(spans: list[Span]) -> TraceGrade:
         evidence=_heaviest_labels(weight) if too_heavy else (),
     )
 
-    checks = (r0, r1, r1b, r3, m1, m2, m3, m4, m5, m6, m7, s1, s2, s3, s4)
+    undeclared = undeclared_tool_calls(spans)
+    # Reported, never fatal: the trace reads fine, and what goes blind is the tool checks.
+    s5 = _check(
+        "S5_declared_tools",
+        "soft",
+        "not_observed" if undeclared is None else ("warn" if undeclared else "pass"),
+        "The model runs tools, but no model call records the tool list it was given — MEGA Loop "
+        "cannot tell a tool the model invented from one that failed, and cannot check a call's "
+        "arguments against the schema the model saw.",
+        "On every LLM span whose call passes `tools`, record "
+        '`llm.tools.<i>.tool.json_schema` — one JSON string per tool, `{"type": "function", '
+        '"function": {"name", "description", "parameters"}}`, exactly as you passed it. An SDK '
+        "instrumentor does this for you; a hand-rolled client has the `tools` argument right "
+        "beside the call and drops it.",
+        n,
+        undeclared or [],
+    )
+
+    checks = (r0, r1, r1b, r3, m1, m2, m3, m4, m5, m6, m7, s1, s2, s3, s4, s5)
     root_label = roots[0].name if len(roots) == 1 else ""
     return TraceGrade(
         trace_id=spans[0].trace_id,
