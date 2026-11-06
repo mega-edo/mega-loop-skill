@@ -1,8 +1,9 @@
 # trace-runtime
 
 The trace validator that the **trace-analyze** and **trace-fix** skills share. It grades a trace
-against the same readiness contract MEGA Loop runs internally, and — unlike the upstream grader —
-every check also says what to change.
+against the eleven readiness checks MEGA Loop runs internally (R0–R3, M1–M7), plus five of its own
+(S1–S5) for what MEGA Loop's detection and replay read, which MEGA Loop does not run — and, unlike
+the upstream grader, every check also says what to change.
 
 This directory is the maintained home of the validator (mega-loop-skill is its source of truth).
 It is not a separately installed package; the two skills call it in place through

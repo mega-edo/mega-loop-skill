@@ -1,8 +1,9 @@
 ---
 name: trace-analyze
 description: >
-  Grade an AI agent's traces against the same readiness contract MEGA Loop runs internally, and
-  produce a report with a fix for every finding — read-only, no edits. Use when the user's
+  Grade an AI agent's traces against the readiness checks MEGA Loop runs internally, plus this
+  plugin's own checks of what its detection reads, and produce a report with a fix for every
+  finding — read-only, no edits. Use when the user's
   traces are missing, fragmented or ignored, when MEGA Loop reports low trace readiness, or when
   they ask "are my traces good enough for MEGA Loop". To then apply the fixes, hand off to
   trace-fix.
@@ -11,7 +12,8 @@ allowed-tools: Read, Bash, Glob, Grep
 
 # mega-loop trace-analyze — grade traces against the contract (read-only)
 
-Grade the user's traces the way MEGA Loop grades them internally, and hand back a report that says —
+Grade the user's traces with the checks MEGA Loop runs internally, and a few of this plugin's own,
+and hand back a report that says —
 for each trace — whether MEGA Loop can use it, and exactly what to change if not. **Reads and
 reports; never edits code** — applying the fixes is **trace-fix**'s job. It runs the validator
 locally, so unlike the diagnose / fix verbs it needs no active project and no PAT.
@@ -69,6 +71,10 @@ whether the request crosses a process boundary (a second service, a worker, a qu
 ## The report: four questions, in priority order
 
 The validator rolls sixteen checks into one **verdict** per trace — the worst thing wrong wins.
+Eleven are MEGA Loop's own readiness checks (`R0`–`R3`, `M1`–`M7`), the ids it runs on every trace.
+`S1`–`S5` are this plugin's: they check what MEGA Loop's detection and replay read, and MEGA Loop
+does not run them. `S1` can still lower a trace to `detection_gap` here; `S2`–`S5` only warn. Say
+so when an S-check is the finding, so the user does not read it as a MEGA Loop rejection.
 Present it as four answers, and keep question 4 on its own line, because it is **not** part of the
 verdict.
 

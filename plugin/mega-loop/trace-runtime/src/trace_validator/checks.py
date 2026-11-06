@@ -1,9 +1,13 @@
 """The sixteen checks, and the verdict they roll up to.
 
-This mirrors `mega_loop/readiness.py` — same ids, same tiers, same order of precedence — with one
-addition: every check carries a **fix**. Upstream only has to explain a verdict to an operator
-looking at a dashboard; here the developer is going to act on it, in their own code, right now,
-so a check that cannot say what to change has no reason to exist.
+The eleven R and M checks mirror `mega_loop/analyze/readiness.py` — same ids, same tiers, same
+order of precedence. S1–S5 are this plugin's own: they check what MEGA Loop's detection and replay
+read (`mega_loop/analyze/detect.py`, `mega_loop/replay/graph.py`), and MEGA Loop does not run them.
+S1 can lower a verdict to `detection_gap`; S2–S5 only warn.
+
+Every check also carries a **fix**. Upstream only has to explain a verdict to an operator looking
+at a dashboard; here the developer is going to act on it, in their own code, right now, so a check
+that cannot say what to change has no reason to exist.
 
 The grader answers one question: *is this trace well-formed enough that MEGA Loop's detection and
 gate can run on it at all?* It never asks whether the trace contains a bug. A real application

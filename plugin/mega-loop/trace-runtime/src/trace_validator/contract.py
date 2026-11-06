@@ -18,7 +18,7 @@ validator lie:
 
 from __future__ import annotations
 
-# --- span kinds (mega_loop/readiness.py, mega_loop/normalize.py) ---------------
+# --- span kinds (mega_loop/analyze/readiness.py, mega_loop/analyze/normalize.py) ---
 
 #: OpenInference SpanKind is required + enumerated. ``SPAN`` is NOT a member — it is the
 #: normalizer's stand-in for an *absent* kind, so it reads as absent, not as present-non-enum.
@@ -41,7 +41,7 @@ SPAN_KINDS = frozenset(
 #: detect blind spot and therefore the harder verdict.
 ABSENT_KINDS = frozenset({"", "SPAN"})
 
-#: The kinds any detector actually filters on (mega_loop/detect.py: ``TOOL_KINDS`` = TOOL,
+#: The kinds any detector actually filters on (mega_loop/analyze/detect.py: ``TOOL_KINDS`` = TOOL,
 #: RETRIEVER and ``_GENERATIVE_KINDS`` = LLM, AGENT). Mirrored, not chosen — every detector in
 #: that module narrows to one of these two sets before it looks at anything.
 #:
@@ -56,12 +56,13 @@ DETECTOR_KINDS = frozenset({"LLM", "AGENT", "TOOL", "RETRIEVER"})
 STEP_KINDS = frozenset({"LLM", "TOOL", "RETRIEVER"})
 
 #: Structural spans whose output is a tool/business result rather than model prose — the only
-#: kinds where a leading error idiom under an OK status is worth reporting (mega_loop/detect.py).
+#: kinds where a leading error idiom under an OK status is worth reporting
+#: (mega_loop/analyze/detect.py).
 CONTENT_ERROR_KINDS = frozenset({"TOOL", "RETRIEVER", "SPAN", "CHAIN"})
 
 KNOWN_ROLES = frozenset({"system", "user", "assistant", "tool", "function"})
 
-# --- error-in-OK-content (mega_loop/detect.py) --------------------------------
+# --- error-in-OK-content (mega_loop/analyze/detect.py) ------------------------
 
 #: Only the head of the output is matched, lowercased.
 HEAD_CHARS = 120
@@ -97,15 +98,16 @@ OI_TOK_TOTAL = "llm.token_count.total"
 OI_IN_MESSAGES = "llm.input_messages"
 OI_OUT_MESSAGES = "llm.output_messages"
 OI_INVOCATION = "llm.invocation_parameters"
-#: ``llm.tools.<i>.tool.json_schema`` — the tool list the model was given (mega_loop/detect.py
-#: ``_declared_tools``). Without it a tool the model invented and a tool that failed look alike.
+#: ``llm.tools.<i>.tool.json_schema`` — the tool list the model was given
+#: (mega_loop/analyze/detect.py ``_declared_tools``). Without it a tool the model invented and a
+#: tool that failed look alike.
 OI_TOOLS = "llm.tools"
 
 #: Indexed families whose index sits directly after the prefix. ``tool_calls`` is absent on
 #: purpose — it nests under the output-message index and is checked separately.
 INDEX_FAMILIES = (OI_IN_MESSAGES, OI_OUT_MESSAGES, "retrieval.documents")
 
-# --- foreign → OpenInference (mega_loop/normalize.py) -------------------------
+# --- foreign → OpenInference (mega_loop/analyze/normalize.py) -----------------
 
 SCALAR_TOKENS = {
     "gen_ai.usage.input_tokens": OI_TOK_PROMPT,  # gen_ai current
@@ -178,7 +180,7 @@ REQUEST_PARAM_LEAVES = frozenset(
     }
 )
 
-# --- token accounting (mega_loop/detect.py zero_usage_spans, readiness.py M7) --
+# --- token accounting (mega_loop/analyze/detect.py zero_usage_spans, readiness.py M7) ---
 
 #: Below this much output text, zero tokens is plausible rather than missing — a span that
 #: returned nothing may honestly have ~0 completion tokens. Upstream's floor, not a guess.
@@ -283,14 +285,14 @@ WARN_IS_FATAL = frozenset({"R3_error_status"})
 #: widening the evidence should not have to find four of them.
 EVIDENCE_LIMIT = 5
 
-# --- verify traffic (mega_loop/normalize.py, adr/0008) ------------------------
+# --- verify traffic (mega_loop/analyze/normalize.py, adr/0008) ----------------
 
 #: MEGA Loop stamps its own verification re-runs and excludes them from detection. A developer's
 #: sample should exclude them too, or the validator grades traffic the product never sees.
 VERIFY_MARK_KEY = "mega.verify"
 VERIFY_ENVIRONMENT = "mega-verify"
 
-# --- verdicts (mega_loop/readiness.py) ----------------------------------------
+# --- verdicts (mega_loop/analyze/readiness.py) --------------------------------
 
 #: Worst-wins ordering when aggregating one check across many traces.
 VERDICT_RANK = {"pass": 0, "not_observed": 1, "warn": 2, "fail": 3}
