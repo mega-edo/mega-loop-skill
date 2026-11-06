@@ -44,6 +44,8 @@ test('the example agent emits one seatable trace', async () => {
   const { exitCode, report } = grade(spans)
   assert.equal(report.verdict, 'entry_seatable', JSON.stringify(report, null, 2))
   assert.equal(exitCode, 0)
+  // The hand-written model call records the tool list it offers, as the kit tells apps to.
+  assert.equal(report.checks.find((c) => c.id === 'S5_declared_tools').verdict, 'pass')
 })
 
 async function runTwoServices({ seatInput }) {

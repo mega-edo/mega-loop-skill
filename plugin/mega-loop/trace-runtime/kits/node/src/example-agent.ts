@@ -20,6 +20,22 @@ import { setupTracing, shutdownTracing } from './instrument.js'
 
 const tracer = setupTracing({ serviceName: 'orders-agent', serviceVersion: '1.4.2' })
 
+/** The `tools` argument the planning call passes, as the client sends it. */
+const TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'query_orders',
+      description: 'Orders in a time window, with whether each shipped late.',
+      parameters: {
+        type: 'object',
+        properties: { window: { type: 'string' } },
+        required: ['window'],
+      },
+    },
+  },
+]
+
 export async function handleRequest(question: string): Promise<string> {
   return tracer.startActiveSpan('POST /chat', async (root) => {
     root.setAttribute('openinference.span.kind', 'CHAIN')
@@ -49,6 +65,11 @@ async function planStep(question: string): Promise<{ window: string }> {
     span.setAttribute('llm.input_messages.0.message.content', 'You answer order questions.')
     span.setAttribute('llm.input_messages.1.message.role', 'user')
     span.setAttribute('llm.input_messages.1.message.content', question)
+    // The tools the call offers, each exactly as passed. Without them a tool the model invented
+    // reads like one that failed (S5_declared_tools).
+    TOOLS.forEach((tool, i) => {
+      span.setAttribute(`llm.tools.${i}.tool.json_schema`, JSON.stringify(tool))
+    })
 
     const plan = { window: 'last_week' }
     span.setAttribute('llm.output_messages.0.message.role', 'assistant')

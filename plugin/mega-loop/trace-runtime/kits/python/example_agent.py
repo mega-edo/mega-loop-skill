@@ -29,6 +29,22 @@ from opentelemetry.trace import Status, StatusCode
 
 tracer = setup_tracing(service_name="orders-agent", service_version="1.4.2")
 
+#: The `tools` argument the planning call passes, as the client sends it.
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "query_orders",
+            "description": "Orders in a time window, with whether each shipped late.",
+            "parameters": {
+                "type": "object",
+                "properties": {"window": {"type": "string"}},
+                "required": ["window"],
+            },
+        },
+    }
+]
+
 
 def handle_request(question: str) -> str:
     """The request. Everything below it belongs to this one span."""
@@ -58,6 +74,10 @@ def plan_step(question: str) -> dict[str, Any]:
         span.set_attribute("llm.input_messages.0.message.content", "You answer order questions.")
         span.set_attribute("llm.input_messages.1.message.role", "user")
         span.set_attribute("llm.input_messages.1.message.content", question)
+        # The tools the call offers, each exactly as passed. Without them a tool the model
+        # invented reads like one that failed (S5_declared_tools).
+        for i, tool in enumerate(TOOLS):
+            span.set_attribute(f"llm.tools.{i}.tool.json_schema", json.dumps(tool))
 
         plan = {"window": "last_week"}
         span.set_attribute("llm.output_messages.0.message.role", "assistant")

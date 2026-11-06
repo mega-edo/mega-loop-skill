@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from tests.conftest import span
 
 from trace_validator.checks import grade, grade_sample, group_by_trace, opaque_spans
@@ -494,6 +495,29 @@ def test_a_tool_list_on_any_model_call_declares_the_trace() -> None:
 def test_a_trace_that_runs_no_tool_owes_no_tool_list() -> None:
     no_tools = [s for s in _tool_running_trace() if s.span_kind != "TOOL"]
     assert verdict_of(no_tools, "S5_declared_tools") == "not_observed"
+
+
+def test_a_tool_the_model_invented_still_owes_a_tool_list() -> None:
+    """Nothing runs a tool that does not exist, so no TOOL span: the call itself is the sign."""
+    invented = [s for s in _tool_running_trace(**{_CALLED: "get_refund"}) if s.span_kind != "TOOL"]
+    assert verdict_of(invented, "S5_declared_tools") == "warn"
+
+
+_CALLED = "llm.output_messages.0.message.tool_calls.0.tool_call.function.name"
+
+
+@pytest.mark.parametrize(
+    "attributes",
+    [
+        {"llm.tools.0.name": "get_order"},
+        {"llm.tools.0.tool.json_schema": "get_order"},
+        {"llm.tools.0.tool.json_schema": '{"type": "function", "function": {"parameters": {}}}'},
+    ],
+    ids=["not the schema key", "not JSON", "no tool name"],
+)
+def test_only_a_named_json_schema_declares_a_tool(attributes: dict[str, str]) -> None:
+    """The same reading as MEGA Loop's detector: what it cannot read declares nothing."""
+    assert verdict_of(_tool_running_trace(**attributes), "S5_declared_tools") == "warn"
 
 
 def test_an_undeclared_tool_list_never_lowers_the_verdict() -> None:

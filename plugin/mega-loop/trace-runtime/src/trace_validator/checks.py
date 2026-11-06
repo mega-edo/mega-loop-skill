@@ -13,6 +13,7 @@ it, and must never lower a check.
 
 from __future__ import annotations
 
+import json
 import re
 from contextlib import suppress
 from heapq import nlargest
@@ -24,6 +25,7 @@ from trace_validator import contract as C
 from trace_validator.span import Span
 
 _TOOL_CALL_KEY = re.compile(r"^llm\.output_messages\.(\d+)\.message\.tool_calls\.(\d+)\.")
+_TOOL_SCHEMA_KEY = re.compile(rf"^{re.escape(C.OI_TOOLS)}\.\d+\.tool\.json_schema$")
 
 
 class Check(BaseModel):
@@ -386,18 +388,34 @@ def zero_usage_spans(spans: list[Span]) -> list[Span]:
     return out
 
 
-def undeclared_tool_calls(spans: list[Span]) -> list[Span] | None:
-    """The model calls of a trace that runs tools while no model call says which it was offered;
-    None when the trace runs no tool, so there is no list to owe.
+def _declares_a_tool(key: str, value: object) -> bool:
+    """MEGA Loop's own reading of a declared tool (`analyze/detect.py` `_declared_tools`): the
+    schema key, a JSON value, and a function name in it. Anything else declares nothing there,
+    so it must not pass here."""
+    if not _TOOL_SCHEMA_KEY.match(key):
+        return False
+    try:
+        schema = json.loads(str(value))
+    except json.JSONDecodeError:
+        return False
+    fn = schema.get("function", schema) if isinstance(schema, dict) else None
+    return isinstance(fn, dict) and bool(fn.get("name"))
 
-    One declaring call clears the trace: an app hands the same list to every turn, and the
-    reference asks for it once per trace at the least. A hand-rolled model call is the usual
-    gap — SDK instrumentors copy the ``tools`` argument themselves.
+
+def undeclared_tool_calls(spans: list[Span]) -> list[Span] | None:
+    """The model calls of a trace that uses tools while nothing says which were offered; None
+    when it uses none, so there is no list to owe.
+
+    A tool call on a model call counts as well as a TOOL span: a tool the model invented runs
+    nowhere, and telling that apart from a failed tool is what the list is for. One declaration
+    anywhere clears the trace, as MEGA Loop reads the union of them. A hand-rolled model call is
+    the usual gap — SDK instrumentors copy the ``tools`` argument themselves.
     """
     llm = [s for s in spans if s.span_kind == "LLM"]
-    if not llm or not any(s.span_kind == "TOOL" for s in spans):
+    calls = any(_TOOL_CALL_KEY.match(str(k)) for s in spans for k in s.attributes)
+    if not llm or not (calls or any(s.span_kind == "TOOL" for s in spans)):
         return None
-    declared = any(str(k).startswith(f"{C.OI_TOOLS}.") for s in llm for k in s.attributes)
+    declared = any(_declares_a_tool(str(k), v) for s in spans for k, v in s.attributes.items())
     return [] if declared else llm
 
 
@@ -678,14 +696,14 @@ def grade(spans: list[Span]) -> TraceGrade:
         "S5_declared_tools",
         "soft",
         "not_observed" if undeclared is None else ("warn" if undeclared else "pass"),
-        "The model runs tools, but no model call records the tool list it was given — MEGA Loop "
-        "cannot tell a tool the model invented from one that failed, and cannot check a call's "
-        "arguments against the schema the model saw.",
-        "On every LLM span whose call passes `tools`, record "
-        '`llm.tools.<i>.tool.json_schema` — one JSON string per tool, `{"type": "function", '
-        '"function": {"name", "description", "parameters"}}`, exactly as you passed it. An SDK '
-        "instrumentor does this for you; a hand-rolled client has the `tools` argument right "
-        "beside the call and drops it.",
+        "The model uses tools, but nothing in the trace records the tool list it was given — "
+        "MEGA Loop cannot tell a tool the model invented from one that failed, and cannot check a "
+        "call's arguments against the schema the model saw.",
+        "On the LLM span whose call passes `tools`, record `llm.tools.<i>.tool.json_schema` — one "
+        'JSON string per tool, `{"type": "function", "function": {"name", "description", '
+        '"parameters"}}`, exactly as you passed it. Once per trace is what MEGA Loop needs; on '
+        "every such call is better. An SDK instrumentor does this for you; a hand-rolled client "
+        "has the `tools` argument right beside the call and drops it.",
         n,
         undeclared or [],
     )

@@ -85,7 +85,7 @@ Then label the steps for what they are:
 
 | Step | Kind | Must carry |
 |---|---|---|
-| model call | `LLM` | the messages (`llm.input_messages.*`), the answer and the tool calls it made (`llm.output_messages.*`), token counts — and, when the call passes tools, the tool list it was given (`llm.tools.<i>.tool.json_schema`) |
+| model call | `LLM` | the messages (`llm.input_messages.*`), the answer and the tool calls it made (`llm.output_messages.*`), token counts — and, when the call passes tools, the tool list it was given (`llm.tools.<i>.tool.json_schema`): at least once per trace, best on every such call |
 | tool / function | `TOOL` | `input.value`, `output.value`, `tool.name` |
 | retrieval | `RETRIEVER` | the documents, in the flat `retrieval.documents.N.*` layout |
 | a sub-agent | `AGENT` | its own input and output |
@@ -95,8 +95,10 @@ Reference: `${CLAUDE_PLUGIN_ROOT}/trace-runtime/references/span-kinds.md` for th
 expects, and `context-propagation.md` for every boundary found in step 1.
 
 **Let an instrumentor record the model call** whenever one exists for the client the app uses —
-the Python kit turns on OpenAI, Anthropic, LiteLLM, LangChain, LlamaIndex and Bedrock. It copies
-the messages, the tool calls and the `tools` argument as they were sent. A hand-written model-call
+the Python kit turns on OpenAI, Anthropic, LiteLLM, LangChain, LlamaIndex and Bedrock, whichever
+are installed. It copies the messages, the tool calls and the `tools` argument as they were sent.
+For an app that calls through LiteLLM, install LiteLLM's instrumentor and not OpenAI's: with both,
+every OpenAI-routed call is recorded twice and its tokens counted twice. A hand-written model-call
 span is where the tool list goes missing: the `tools` argument sits right beside the call, and a
 span that records only the prompt as `input.value` drops it. Without the list MEGA Loop cannot
 tell a tool the model invented from one that failed, and cannot check arguments against the
