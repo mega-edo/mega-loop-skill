@@ -53,9 +53,10 @@ nobody has run, and offers to write the spans against that language's own OpenTe
 attribute names are the same strings either way.
 
 **trace-analyze** — *"are my traces good enough for MEGA Loop?"* · `/mega-loop:trace-analyze`
-Read only. Grades your traces — or your source, before any traces exist — against the readiness
-contract MEGA Loop runs internally — fifteen checks, four of them reported but never fatal — and
-answers four questions per trace:
+Read only. Grades your traces — or your source, before any traces exist — against sixteen checks,
+five of them reported but never fatal: the eleven readiness checks MEGA Loop runs internally
+(R0–R3, M1–M7), and five of the plugin's own (S1–S5) for what MEGA Loop's detection and replay read,
+which MEGA Loop itself does not run. It answers four questions per trace:
 
 1. **Can the request be re-run at all?** — the verdict (`entry_missing` → `detection_gap` →
    `degraded` → `entry_seatable`).
@@ -63,7 +64,8 @@ answers four questions per trace:
 3. **Where are spans malformed?** — fragmentation, missing span kinds, and the rest.
 4. **Is the trace worth it, and what does it cost?** — a separate, never-fatal line: a trace can be
    perfectly readable and still hold nothing to detect (all CHAIN, mostly mechanical noise, no
-   token counts), or carry megabytes of its own payload on every run.
+   token counts), carry megabytes of its own payload on every run, or run tools without recording
+   the tool list the model was given.
 
 Every finding comes with the exact fix, marked *mechanical* (trace-fix can apply it) or *needs your
 decision*, and the summary orders them by how many traces each clears. A fix that clears none of

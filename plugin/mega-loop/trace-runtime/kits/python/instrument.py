@@ -19,6 +19,10 @@ Install:
 
     pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http \\
                 openinference-instrumentation-openai openinference-instrumentation-anthropic
+
+    # an app that calls models through LiteLLM installs its instrumentor *instead of* the OpenAI
+    # one: with both, a call LiteLLM routes to OpenAI is recorded twice, its tokens counted twice.
+    pip install openinference-instrumentation-litellm
 """
 
 from __future__ import annotations
@@ -43,6 +47,9 @@ logger = logging.getLogger(__name__)
 _INSTRUMENTORS = (
     ("openinference.instrumentation.openai", "OpenAIInstrumentor"),
     ("openinference.instrumentation.anthropic", "AnthropicInstrumentor"),
+    # LiteLLM calls OpenAI-routed models through the openai SDK, so with the OpenAI one above also
+    # installed each such call becomes two LLM spans and doubled tokens. Install one of the two.
+    ("openinference.instrumentation.litellm", "LiteLLMInstrumentor"),
     ("openinference.instrumentation.langchain", "LangChainInstrumentor"),
     ("openinference.instrumentation.llama_index", "LlamaIndexInstrumentor"),
     ("openinference.instrumentation.bedrock", "BedrockInstrumentor"),

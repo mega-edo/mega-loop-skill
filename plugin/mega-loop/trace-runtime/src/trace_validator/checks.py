@@ -1,9 +1,13 @@
-"""The fifteen checks, and the verdict they roll up to.
+"""The sixteen checks, and the verdict they roll up to.
 
-This mirrors `mega_loop/readiness.py` — same ids, same tiers, same order of precedence — with one
-addition: every check carries a **fix**. Upstream only has to explain a verdict to an operator
-looking at a dashboard; here the developer is going to act on it, in their own code, right now,
-so a check that cannot say what to change has no reason to exist.
+The eleven R and M checks mirror `mega_loop/analyze/readiness.py` — same ids, same tiers, same
+order of precedence. S1–S5 are this plugin's own: they check what MEGA Loop's detection and replay
+read (`mega_loop/analyze/detect.py`, `mega_loop/replay/graph.py`), and MEGA Loop does not run them.
+S1 can lower a verdict to `detection_gap`; S2–S5 only warn.
+
+Every check also carries a **fix**. Upstream only has to explain a verdict to an operator looking
+at a dashboard; here the developer is going to act on it, in their own code, right now, so a check
+that cannot say what to change has no reason to exist.
 
 The grader answers one question: *is this trace well-formed enough that MEGA Loop's detection and
 gate can run on it at all?* It never asks whether the trace contains a bug. A real application
@@ -13,6 +17,7 @@ it, and must never lower a check.
 
 from __future__ import annotations
 
+import json
 import re
 from contextlib import suppress
 from heapq import nlargest
@@ -24,6 +29,7 @@ from trace_validator import contract as C
 from trace_validator.span import Span
 
 _TOOL_CALL_KEY = re.compile(r"^llm\.output_messages\.(\d+)\.message\.tool_calls\.(\d+)\.")
+_TOOL_SCHEMA_KEY = re.compile(rf"^{re.escape(C.OI_TOOLS)}\.\d+\.tool\.json_schema$")
 
 
 class Check(BaseModel):
@@ -118,6 +124,7 @@ FINDING_CLASS = {
     "S2_signal_density": C.ARCHITECTURAL,  # which instrumentation runs at all
     "S3_detectable_work": C.ARCHITECTURAL,  # whether this traffic belongs in the sample
     "S4_payload_weight": C.ARCHITECTURAL,  # storing a reference instead of the bytes
+    "S5_declared_tools": C.MECHANICAL,  # the `tools` argument is beside the call already
 }
 
 
@@ -385,6 +392,37 @@ def zero_usage_spans(spans: list[Span]) -> list[Span]:
     return out
 
 
+def _declares_a_tool(key: str, value: object) -> bool:
+    """MEGA Loop's own reading of a declared tool (`analyze/detect.py` `_declared_tools`): the
+    schema key, a JSON value, and a function name in it. Anything else declares nothing there,
+    so it must not pass here."""
+    if not _TOOL_SCHEMA_KEY.match(key):
+        return False
+    try:
+        schema = json.loads(str(value))
+    except json.JSONDecodeError:
+        return False
+    fn = schema.get("function", schema) if isinstance(schema, dict) else None
+    return isinstance(fn, dict) and bool(fn.get("name"))
+
+
+def undeclared_tool_calls(spans: list[Span]) -> list[Span] | None:
+    """The model calls of a trace that uses tools while nothing says which were offered; None
+    when it uses none, so there is no list to owe.
+
+    A tool call on a model call counts as well as a TOOL span: a tool the model invented runs
+    nowhere, and telling that apart from a failed tool is what the list is for. One declaration
+    anywhere clears the trace, as MEGA Loop reads the union of them. A hand-rolled model call is
+    the usual gap — SDK instrumentors copy the ``tools`` argument themselves.
+    """
+    llm = [s for s in spans if s.span_kind == "LLM"]
+    calls = any(_TOOL_CALL_KEY.match(str(k)) for s in spans for k in s.attributes)
+    if not llm or not (calls or any(s.span_kind == "TOOL" for s in spans)):
+        return None
+    declared = any(_declares_a_tool(str(k), v) for s in spans for k, v in s.attributes.items())
+    return [] if declared else llm
+
+
 def detectable_spans(spans: list[Span]) -> list[Span]:
     """Spans a detector would actually look at.
 
@@ -408,7 +446,7 @@ def _check(
     """The one place a graded Check is built.
 
     ``evidence`` defaults to the deduped labels of the failing spans, which is what a reader
-    wants for fourteen of the fifteen checks. A check whose evidence is a measurement rather
+    wants for fifteen of the sixteen checks. A check whose evidence is a measurement rather
     than a location passes its own; keeping that a parameter rather than a second constructor
     is what stops the two drifting.
 
@@ -656,7 +694,25 @@ def grade(spans: list[Span]) -> TraceGrade:
         evidence=_heaviest_labels(weight) if too_heavy else (),
     )
 
-    checks = (r0, r1, r1b, r3, m1, m2, m3, m4, m5, m6, m7, s1, s2, s3, s4)
+    undeclared = undeclared_tool_calls(spans)
+    # Reported, never fatal: the trace reads fine, and what goes blind is the tool checks.
+    s5 = _check(
+        "S5_declared_tools",
+        "soft",
+        "not_observed" if undeclared is None else ("warn" if undeclared else "pass"),
+        "The model uses tools, but nothing in the trace records the tool list it was given — "
+        "MEGA Loop cannot tell a tool the model invented from one that failed, and cannot check a "
+        "call's arguments against the schema the model saw.",
+        "On the LLM span whose call passes `tools`, record `llm.tools.<i>.tool.json_schema` — one "
+        'JSON string per tool, `{"type": "function", "function": {"name", "description", '
+        '"parameters"}}`, exactly as you passed it. Once per trace is what MEGA Loop needs; on '
+        "every such call is better. An SDK instrumentor does this for you; a hand-rolled client "
+        "has the `tools` argument right beside the call and drops it.",
+        n,
+        undeclared or [],
+    )
+
+    checks = (r0, r1, r1b, r3, m1, m2, m3, m4, m5, m6, m7, s1, s2, s3, s4, s5)
     root_label = roots[0].name if len(roots) == 1 else ""
     return TraceGrade(
         trace_id=spans[0].trace_id,

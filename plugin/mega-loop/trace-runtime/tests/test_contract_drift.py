@@ -170,14 +170,14 @@ def test_blocking_agrees_with_rollup_on_every_check_and_verdict() -> None:
             assert by_id[cid].blocking is moved, (cid, verdict)
 
 
-def test_never_fatal_is_the_four_checks_the_docs_promise() -> None:
+def test_never_fatal_is_the_five_checks_the_docs_promise() -> None:
     """Vocabulary only — it no longer decides anything, so nothing else would catch it drifting.
 
-    README and docs/commands.md both say "four of fifteen are reported but never fatal", and
+    README and docs/commands.md both say "five of sixteen are reported but never fatal", and
     ``S4``'s own comment says a heavy trace is still a usable one. A check listed here that grew
     a ``fail`` branch would make those sentences false while the code stayed correct.
     """
-    assert len(C.NEVER_FATAL) == 4
+    assert len(C.NEVER_FATAL) == 5
     assert set(graded_ids()) >= C.NEVER_FATAL
 
     # A never-fatal check that acquired a fatal warn would be the contradiction in terms.

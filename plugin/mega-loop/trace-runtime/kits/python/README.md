@@ -7,8 +7,20 @@ pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
 # plus the instrumentor(s) for the SDKs you actually use:
 pip install openinference-instrumentation-openai
 pip install openinference-instrumentation-anthropic
+pip install openinference-instrumentation-litellm       # litellm.completion / acompletion
 pip install openinference-instrumentation-langchain     # LangChain / LangGraph
 ```
+
+An instrumentor records each model call whole — its messages, the tool calls it made, and the
+tool list it was offered (`llm.tools.*`). If you open the model-call span yourself instead, record
+all three, as `example_agent.py` does; the validator's `S5_declared_tools` warns when the tool list
+is missing.
+
+**LiteLLM or OpenAI, not both.** LiteLLM calls OpenAI-routed models through the `openai` SDK, so
+with both instrumentors installed each such call is recorded twice — two LLM spans, its tokens
+counted twice, which doubles the cost MEGA Loop reports. An app that calls models through LiteLLM
+installs the LiteLLM one only; one that also calls the `openai` SDK directly keeps both and gets
+the double record on LiteLLM's OpenAI calls.
 
 Also install the auto-instrumentation for your web framework and HTTP client — it is what makes
 `traceparent` propagate without you writing a line:

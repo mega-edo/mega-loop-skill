@@ -29,7 +29,7 @@ on it, though, so a step labelled `PROMPT` is invisible to detection just the sa
 | Kind | Must have | Should have |
 |---|---|---|
 | root (`CHAIN`/`AGENT`) | `input.value` — the user's request | `output.value` — the final answer |
-| `LLM` | `llm.model_name` | `llm.token_count.prompt` / `.completion` / `.total`, `llm.input_messages.*`, `llm.output_messages.*`, `llm.invocation_parameters` |
+| `LLM` | `llm.model_name` | `llm.tools.*` when the call passes tools (the trace must carry it at least once — [Declared tools](#declared-tools)), `llm.token_count.prompt` / `.completion` / `.total`, `llm.input_messages.*`, `llm.output_messages.*`, `llm.invocation_parameters` |
 | `TOOL` | `input.value` (the arguments), `output.value` (the result) | the tool's name as the span name |
 | `RETRIEVER` | `input.value` (the query) | `retrieval.documents.<i>.document.content` / `.score` |
 | `EMBEDDING` | `llm.model_name` | `llm.token_count.prompt` |
@@ -60,8 +60,18 @@ Indices are contiguous from 0, and `tool_calls.<j>` is counted **per message**.
 llm.tools.<i>.tool.json_schema    the schema you gave the model (function.name, function.parameters)
 ```
 
-Worth emitting once per trace: it lets MEGA Loop tell "the model called a tool that does not
-exist" apart from "the tool failed."
+Required once per trace whenever the model is offered tools — MEGA Loop reads the union of every
+declaration in the trace — and recommended on every LLM span whose call passes `tools`. It is what
+lets MEGA Loop tell "the model called a tool that does not exist" apart from "the tool failed",
+and check a call's arguments against the schema the model actually saw. Each value is one tool
+exactly as you passed it, as a JSON string:
+`{"type": "function", "function": {"name": …, "description": …, "parameters": …}}`. A tool is
+read only from this exact key, with a JSON value that names the function; any other key under
+`llm.tools.` declares nothing.
+
+An SDK instrumentor records this for you. A hand-written model-call span usually does not: the
+`tools` argument sits beside the call and the span keeps only the prompt. `S5_declared_tools`
+warns when a trace uses tools — a TOOL span, or a tool call on a model call — and declares none.
 
 ## Spans you do not open yourself
 
