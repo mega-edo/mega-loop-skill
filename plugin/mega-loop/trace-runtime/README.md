@@ -32,4 +32,4 @@ uv run --extra dev pytest        # the sixteen checks, plus the contract-drift g
 - `tests/test_contract_drift.py` — pins the three rules that look like oversights; it fails loudly,
   with the reason attached, if anyone "fixes" them. Run the suite after any contract change.
 - `references/` — the trace spec, span kinds, and context propagation the checks and skills point at.
-- `kits/{python,node}/` — instrumentation templates a developer copies into their own repo.
+- `kits/{python,node,rust}/` — instrumentation templates a developer copies into their own repo.

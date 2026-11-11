@@ -1,0 +1,16 @@
+[package]
+name = "mega-loop-trace-kit"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "OpenInference spans over OpenTelemetry for Rust agents: a template to copy, not a dependency."
+
+[dependencies]
+opentelemetry = { version = "0.33.1", features = ["trace"] }
+opentelemetry_sdk = { version = "0.33.1", features = ["trace"] }
+opentelemetry-otlp = { version = "0.33.1", default-features = false, features = ["trace", "http-proto", "reqwest-blocking-client"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+[dev-dependencies]
+opentelemetry_sdk = { version = "0.33.1", features = ["trace", "testing"] }

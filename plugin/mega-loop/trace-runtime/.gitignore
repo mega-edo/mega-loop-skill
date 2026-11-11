@@ -17,6 +17,10 @@ kits/node/dist/
 # The kit is a template copied into someone else's repo; its lockfile would pin their versions.
 kits/node/**/package-lock.json
 
+# Rust (kits/rust) — same reason: the kit's lockfile would pin the adopter's versions.
+kits/rust/target/
+kits/rust/Cargo.lock
+
 # Credentials — the validator reads platform keys from the environment, never from a file that
 # could be committed. Keep it that way: if you use a .env for local runs, it stays out of git.
 .env

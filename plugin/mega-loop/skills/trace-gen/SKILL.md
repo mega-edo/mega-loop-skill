@@ -32,7 +32,11 @@ Read the language line, not the verdict. A clean board here means only that the 
 read is fine — on a repository this grader cannot parse it says so outright, and that message is
 the answer to whether you can continue.
 
-**Kits ship for Python and Node.** For anything else — Go, Java, Ruby, .NET — say so plainly
+**Kits ship for Python, Node and Rust.** On Rust the source grader reads nothing — look at the
+`Cargo.toml` yourself — and there is no OpenInference auto-instrumentation, so every LLM / TOOL /
+AGENT span is one you write with the kit's helpers.
+
+For anything else — Go, Java, Ruby, .NET — say so plainly
 rather than improvising: the OpenTelemetry SDK for that language is mature and the OpenInference
 attribute names are the same strings, so the work is doable, but a kit you invent on the spot is
 one nobody has run. Offer to write the spans by hand against the language's own SDK, and be clear
@@ -63,6 +67,7 @@ Copy the kit for the stack into the repo:
 
 - Python — `${CLAUDE_PLUGIN_ROOT}/trace-runtime/kits/python/`
 - Node — `${CLAUDE_PLUGIN_ROOT}/trace-runtime/kits/node/`
+- Rust — `${CLAUDE_PLUGIN_ROOT}/trace-runtime/kits/rust/` (copy `src/instrument.rs` into the crate)
 
 Each carries a `README.md`, a setup module, and a worked example. Call setup once, first thing in
 the entry point, before the app imports anything that might emit.
@@ -71,6 +76,11 @@ On Node, the web framework decides how the kit is loaded and where the request i
 Node README has a section for each — follow **NestJS** or **Next.js** there rather than the plain
 recipe. The framework opens the root span before the handler runs, so a span you open in the
 handler is a child: seat the request with `setRequestInput`, which reaches the real root.
+
+On Rust, context is explicit: pass the parent `Context` into every step, and by hand into each
+`tokio::spawn` / `spawn_blocking` task — nothing carries it there for you. When the model runs in
+another process (an agent harness, a CLI sidecar), its calls cannot be wrapped; the Rust README's
+last gotcha covers rebuilding them from that process's session log.
 
 Wire the exporter to wherever the user's traces go. The kit READMEs cover the environment
 variables; Langfuse needs OTLP over **HTTP** with basic auth, which is not the same exporter as a

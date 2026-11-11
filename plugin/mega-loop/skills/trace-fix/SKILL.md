@@ -42,11 +42,11 @@ No `uv`? `pip install pydantic httpx` once, then use `python` in place of `uv ru
 
 ## Steps
 
-1. **Apply the kit for the stack** — `${CLAUDE_PLUGIN_ROOT}/trace-runtime/kits/python/` or
-   `${CLAUDE_PLUGIN_ROOT}/trace-runtime/kits/node/`. These are templates to copy into the repo, not
-   dependencies of this plugin. Install the tracer, call `setup_tracing` first thing in the
-   entrypoint, and wrap each user request in a **root span** of kind CHAIN or AGENT carrying
-   `input.value`. On Node behind a framework (NestJS, Next.js, Express), the framework already
+1. **Apply the kit for the stack** — `${CLAUDE_PLUGIN_ROOT}/trace-runtime/kits/python/`,
+   `${CLAUDE_PLUGIN_ROOT}/trace-runtime/kits/node/` or `${CLAUDE_PLUGIN_ROOT}/trace-runtime/kits/rust/`.
+   These are templates to copy into the repo, not dependencies of this plugin. Install the
+   tracer, call `setup_tracing` first thing in the entrypoint, and wrap each user request in a
+   **root span** of kind CHAIN or AGENT carrying `input.value`. On Node behind a framework (NestJS, Next.js, Express), the framework already
    opened the root — seat the request on it with `setRequestInput`, as the Node README's
    framework sections show, instead of opening a second span that would be its child.
 
