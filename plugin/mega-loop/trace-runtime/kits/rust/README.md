@@ -62,7 +62,8 @@ Pass `&root` (or the context of the step you are in) down to every step. The hel
 | `start(name, kind, parent)` | any span; the kind is set at creation |
 | `tool(parent, name, &args, \|cx\| …)` | a tool call: input, output, and ERROR when it returns `Err` |
 | `record_llm(&cx, &LlmCall { … })` | a model call: messages, tool calls, the tools offered, tokens |
-| `input` / `output` / `fail` / `end` | the rest; `input` is kept verbatim (the root's is replayed), other long text is clipped to `MAX_VALUE_CHARS` |
+| `input` | the root's request, verbatim — it is what a fix verification replays |
+| `step_input` / `output` / `fail` / `end` | the rest; step text past `MAX_VALUE_CHARS` is clipped with a marker |
 | `start_at` / `end_at` | a step recorded after it ran, from a log with its own timestamps |
 | `inject` / `extract` | the W3C `traceparent` headers for a service hop |
 
@@ -92,8 +93,10 @@ uv run ../../scripts/validate_traces.py --file target/example-trace.json
   `tokio::spawn` or `spawn_blocking`. Move the parent `Context` into the task and open the span
   with it, or wrap the future with `opentelemetry::context::FutureExt::with_context`. Do not rely
   on `Context::current()` inside a spawned task.
-- **Nothing exported.** A CLI exits before the batch processor flushes. Call
-  `provider.shutdown()` (or `force_flush()` after each request in a long-lived process).
+- **Nothing exported.** A CLI exits before the batch processor flushes: call
+  `provider.shutdown()` before it returns. A server needs nothing per request — the batch
+  processor exports on its own schedule. Do not `force_flush()` on the request path: with the
+  endpoint down it blocks the request for up to the export timeout (30 s by default).
 - **A panic about blocking inside a runtime.** A simple (synchronous) processor with the blocking
   HTTP client runs the export on the calling tokio worker. Use the batch processor
   `setup_tracing` installs; it exports from its own thread.
@@ -101,4 +104,9 @@ uv run ../../scripts/validate_traces.py --file target/example-trace.json
   (an agent harness, a CLI), the calls are not in your process to wrap. If it writes a session
   log with timestamps, replay each call into an LLM span with `start_at` / `end_at` under the
   span that started the session; otherwise record what crosses the boundary (tool calls and the
-  final result) and say what is unmeasured.
+  final result) and say what is unmeasured. Two things the replay owes you:
+  - **Scrub it.** The log holds whatever that process read — a file it opened, a shell rc, a
+    `.env` — and replaying copies it into your trace. Redact keys and tokens before `set`.
+  - **Keep the calls that never answered.** A call cut off by an abort or a timeout has a start
+    record and no response. Emit it anyway, as an LLM span with status ERROR ending at the
+    abort, or the failure that ended the request leaves no trace.

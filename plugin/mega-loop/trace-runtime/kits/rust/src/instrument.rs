@@ -144,10 +144,16 @@ pub fn clip(text: &str) -> String {
     format!("{head}…[{} more chars]", n - MAX_VALUE_CHARS)
 }
 
-/// `input.value`, verbatim — on the root it is the request MEGA Loop replays to verify a fix, so a
+/// The root's `input.value`, verbatim: it is the request MEGA Loop replays to verify a fix, so a
 /// cut one would replay a different request. Store a reference instead if it is a whole file.
 pub fn input(cx: &Context, value: &str) {
     set(cx, "input.value", value.to_string());
+}
+
+/// A step's `input.value`, clipped like its output: nothing replays a step's arguments, and a
+/// large one would otherwise be stored whole on every run (`S4_payload_weight`).
+pub fn step_input(cx: &Context, value: &str) {
+    set(cx, "input.value", clip(value));
 }
 
 pub fn output(cx: &Context, value: &str) {
@@ -176,7 +182,7 @@ pub fn tool<T: std::fmt::Display, E: std::fmt::Display>(
 ) -> Result<T, E> {
     let cx = start(name, "TOOL", parent);
     set(&cx, "tool.name", name.to_string());
-    input(&cx, &args.to_string());
+    step_input(&cx, &args.to_string());
     let res = call(&cx);
     match &res {
         Ok(out) => output(&cx, &out.to_string()),
@@ -221,7 +227,7 @@ pub fn record_llm(cx: &Context, call: &LlmCall) {
         );
     }
     if let Some((_, last)) = call.input_messages.last() {
-        input(cx, last);
+        step_input(cx, last);
     }
     for (i, tool) in call.tools.iter().enumerate() {
         set(
